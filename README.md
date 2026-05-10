@@ -384,13 +384,13 @@ GitHub Personal Access Token 발급: GitHub → Settings → Developer settings 
 
 ```bash
 # 버그 수정 (0.0.1 → 0.0.2)
-yarn release-it patch --ci --no-npm
+yarn release-it patch
 
 # 기능 추가 (0.0.1 → 0.1.0)
-yarn release-it minor --ci --no-npm
+yarn release-it minor
 
 # 호환성 변경 (0.0.1 → 1.0.0)
-yarn release-it major --ci --no-npm
+yarn release-it major
 ```
 
 실행 결과: git commit + tag 생성, push, GitHub Release 자동 생성

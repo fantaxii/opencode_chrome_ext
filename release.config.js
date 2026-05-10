@@ -14,7 +14,5 @@ module.exports = {
     releaseName: 'OpenCode Chrome Extension v${version}',
     autoGenerate: true
   },
-  npm: {
-    publish: false
-  }
+  npm: false
 };
