@@ -532,6 +532,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 try {
   if (chrome.sidePanel) {
+    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
     chrome.sidePanel.setOptions({
       path: 'sidepanel/sidepanel.html',
       enabled: true

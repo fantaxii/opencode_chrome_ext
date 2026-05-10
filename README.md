@@ -399,33 +399,31 @@ yarn build
 
 ### Step 2: Native Messaging Host 설치
 
-먼저 native-host 폴더를 원하는 위치에 복사합니다 (예: `C:\Program Files\OpenCodeChrome\`)
-
-#### 방법 1: 레지스트리 파일 사용
+#### 방법 1: 자동 설치 (권장)
 
 ```powershell
-# 1. 복사한 경로로 install.reg 파일 수정
-#    (예: C:\Program Files\OpenCodeChrome\manifest.json)
+# 1. 압축 해제된 폴더에서 native-host 폴더로 이동
+#    예: opencode-chrome-ext-v1.0.0\native-host\
 
-# 2. 관리자 권한으로 PowerShell 실행
-reg import "C:\Program Files\OpenCodeChrome\native-host\install.reg"
+# 2. 해당 폴더에서 PowerShell 실행 (또는 파일 우클릭 -> "PowerShell로 실행")
+powershell -ExecutionPolicy Bypass -File .\install.ps1
 
-# 제거
-reg import "C:\Program Files\OpenCodeChrome\native-host\uninstall.reg"
+# 기본 설치 위치: %LOCALAPPDATA%\OpenCodeChrome
+# (예: C:\Users\<username>\AppData\Local\OpenCodeChrome)
 ```
 
-#### 방법 2: 수동 설치 (권장)
+#### 방법 2: 수동 설치
 
 ```powershell
-# 1. 파일을 배치한 경로 확인
-#    예: C:\Program Files\OpenCodeChrome\
+# 1. native-host 폴더를 원하는 위치에 복사
+#    예: C:\Program Files\OpenCodeChrome\native-host\
 
-# 2. 레지스트리 수동 생성 (경로 수정 필요)
+# 2. manifest.json의 path를 실제 경로로 수정
+#    "path": "C:\\Program Files\\OpenCodeChrome\\native-host\\host.js"
+
+# 3. 레지스트리 등록
 reg add "HKCU\Software\Google\Chrome\NativeMessagingHosts\com.opencode.chrome" /ve /d "C:\Program Files\OpenCodeChrome\native-host\manifest.json" /f
 ```
-
-** 중요: `host.js`의 매니페스트 경로도 수정 필요**
-`native-host/manifest.json`의 `path`를 실제 호스트 파일 위치로 변경:
 
 ### Step 3: Native Messaging Host 실행
 
