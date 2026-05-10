@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenCode Chat</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <header class="header">
+      <div class="header-left">
+        <span class="logo">🤖</span>
+        <span class="title">OpenCode Chat</span>
+      </div>
+      <div class="header-right">
+        <select id="model-select" class="model-select">
+          <option value="">모델 선택</option>
+        </select>
+        <button id="settings-btn" class="icon-btn" title="설정">⚙️</button>
+      </div>
+    </header>
+
+    <div id="connection-status" class="connection-status">
+      <span class="status-dot"></span>
+      <span class="status-text">연결 안됨</span>
+    </div>
+
+    <div id="messages-container" class="messages-container">
+      <div class="welcome-message">
+        <div class="message bot-message">
+          <div class="message-avatar">🤖</div>
+          <div class="message-content">
+            <p>안녕하세요! OpenCode Chat입니다.</p>
+            <p>무엇을 도와드릴까요?</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="input-container">
+      <div class="tab-info" id="tab-info">
+        <span class="tab-icon">🌐</span>
+        <span class="tab-title" id="tab-title">현재 페이지 정보 없음</span>
+      </div>
+      <div class="input-wrapper">
+        <textarea 
+          id="message-input" 
+          placeholder="메시지를 입력하세요..."
+          rows="1"
+        ></textarea>
+        <button id="send-btn" class="send-btn" disabled>📤</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="loading-indicator" class="loading-indicator hidden">
+    <div class="spinner"></div>
+    <span>응답 대기 중...</span>
+  </div>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>
