@@ -1,0 +1,9 @@
+{
+  "name": "com.opencode.chrome",
+  "description": "OpenCode Chrome Extension Native Messaging Host",
+  "path": "host.js",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://*"
+  ]
+}
