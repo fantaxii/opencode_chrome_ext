@@ -32,6 +32,7 @@ let serverState = {
 let sessions = new Map();
 let currentSessionId = null;
 let eventSources = new Map();
+let selectedModel = null; // { providerID, modelID }
 
 // ============================================
 // 서버 상태 관리
@@ -167,6 +168,15 @@ async function periodicServerCheck() {
 // Periodic 체크 설정 (30초마다)
 setInterval(periodicServerCheck, 30000);
 
+async function getWorkingDirectory() {
+  try {
+    const result = await chrome.storage.local.get('workingDirectory');
+    return result.workingDirectory || '';
+  } catch {
+    return '';
+  }
+}
+
 // ============================================
 // 세션 관리
 // ============================================
@@ -284,25 +294,28 @@ async function sendMessage(sessionId, message, onChunk, onComplete) {
   }
 
   try {
-    // 1. 먼저 메시지 전송 (서버에 AI 작업 시작 요청)
+    // 1. 프롬프트 먼저 전송 (비동기 처리 시작)
+    const workingDir = await getWorkingDirectory();
+    const headers = { 'Content-Type': 'application/json' };
+    if (workingDir) headers['x-opencode-directory'] = workingDir;
+
     const promptResponse = await fetch(
-      `http://127.0.0.1:${port}/session/${sessionId}/prompt`,
+      `http://127.0.0.1:${port}/session/${sessionId}/prompt_async`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
+          ...(selectedModel && { model: selectedModel }),
           parts: [{ type: 'text', text: message }]
         })
       }
     );
-
-    if (!promptResponse.ok && promptResponse.status !== 202) {
+    if (promptResponse.status !== 204 && promptResponse.status !== 202 && !promptResponse.ok) {
       throw new Error(`메시지 전송 실패: ${promptResponse.status}`);
     }
 
-    // 2. SSE로 응답 스트리밍 수신
-    await subscribeToEvents(sessionId, port, onChunk, onComplete);
-
+    // 2. 프롬프트 전송 후 SSE 구독 (서버가 처리 중일 때 연결)
+    subscribeToEvents(sessionId, port, onChunk, onComplete);
   } catch (error) {
     console.error('메시지 전송 오류:', error);
     throw error;
@@ -310,94 +323,171 @@ async function sendMessage(sessionId, message, onChunk, onComplete) {
 }
 
 /**
- * SSE 이벤트 구독
+ * SSE 이벤트 구독 (/global/event + Last-Event-ID 재연결)
+ * server.connected 수신 시 resolve → 이후 prompt_async 전송
+ * 스트림 종료 시 Last-Event-ID로 재연결하여 응답 이벤트 수신
  */
-async function subscribeToEvents(sessionId, port, onChunk, onComplete) {
-  // 기존 연결 종료
-  const existingSource = eventSources.get(sessionId);
-  if (existingSource) {
-    existingSource.close();
-  }
+function subscribeToEvents(sessionId, port, onChunk, onComplete) {
+  const existing = eventSources.get(sessionId);
+  if (existing) existing.abort();
 
-  const eventSource = new EventSource(
-    `http://127.0.0.1:${port}/event?session=${sessionId}`
-  );
+  const controller = new AbortController();
+  eventSources.set(sessionId, controller);
 
-  let buffer = '';
-  let completed = false;
+  return new Promise((resolveConnected) => {
+    let resolved = false;
+    let buffer = '';
+    let completed = false;
+    let assistantMessageId = null;
+    let textPartIds = new Set();
 
-  eventSource.onmessage = (event) => {
-    if (completed) return;
-
-    try {
-      const data = JSON.parse(event.data);
-      
-      // 세션 ID 확인
-      if (data.sessionID !== sessionId && data.properties?.sessionID !== sessionId) {
-        return;
+    const timeoutId = setTimeout(() => {
+      if (!completed) {
+        controller.abort();
+        eventSources.delete(sessionId);
+        onComplete(buffer || '', '응답 시간 초과');
       }
+    }, 60000);
 
-      // 이벤트 타입 처리
-      const eventType = data.type || data.event;
-      
-      switch (eventType) {
-        case 'chunk':
-        case 'text-delta':
-          const content = data.content || data.delta || data.text || '';
-          if (content) {
-            buffer += content;
-            onChunk(content);
+    function resolveOnce() {
+      if (!resolved) { resolved = true; resolveConnected(); }
+    }
+
+    async function connect(lastEventId = '') {
+      if (completed || controller.signal.aborted) return;
+
+      try {
+        const headers = { 'Accept': 'text/event-stream', 'Cache-Control': 'no-cache' };
+        if (lastEventId) headers['Last-Event-ID'] = lastEventId;
+
+        const response = await fetch(
+          `http://127.0.0.1:${port}/global/event`,
+          { headers, signal: controller.signal }
+        );
+
+        if (!response.ok) {
+          resolveOnce();
+          clearTimeout(timeoutId);
+          onComplete('', `SSE 연결 실패: ${response.status}`);
+          return;
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let pending = '';
+        let currentId = lastEventId;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          pending += decoder.decode(value, { stream: true });
+
+          // SSE 이벤트는 \n\n 으로 구분
+          const parts = pending.split('\n\n');
+          pending = parts.pop();
+
+          for (const part of parts) {
+            let sseId = '';
+            let sseData = '';
+
+            for (const line of part.split('\n')) {
+              if (line.startsWith('id:')) sseId = line.slice(3).trim();
+              else if (line.startsWith('data:')) sseData = line.slice(5).trim();
+            }
+
+            if (sseId) currentId = sseId;
+            if (!sseData) continue;
+
+            try {
+              const raw = JSON.parse(sseData);
+              // /global/event 는 { directory, payload } 래퍼
+              const evt = raw.payload || raw;
+              // id 가 SSE id: 필드 없이 JSON 안에 있을 경우 fallback
+              if (!currentId && raw.id) currentId = raw.id;
+
+
+              if (evt.type === 'server.connected') {
+                resolveOnce();
+                continue;
+              }
+
+              // 세션 ID 필터
+              const evtSession = evt.properties?.sessionID
+                || evt.properties?.part?.sessionID
+                || evt.properties?.info?.id;
+              if (evtSession && evtSession !== sessionId) continue;
+
+              switch (evt.type) {
+                case 'message.updated': {
+                  const info = evt.properties?.info;
+                  if (info?.role === 'assistant' && info?.sessionID === sessionId) {
+                    assistantMessageId = info.id;
+                  }
+                  break;
+                }
+                case 'message.part.updated': {
+                  const part = evt.properties?.part;
+                  if (part?.type === 'text' && part.messageID === assistantMessageId) {
+                    textPartIds.add(part.id);
+                  }
+                  break;
+                }
+                case 'message.part.delta': {
+                  const props = evt.properties;
+                  if (textPartIds.has(props?.partID) && props?.delta) {
+                    buffer += props.delta;
+                    onChunk(props.delta);
+                  }
+                  break;
+                }
+                case 'session.idle': {
+                  completed = true;
+                  clearTimeout(timeoutId);
+                  controller.abort();
+                  eventSources.delete(sessionId);
+                  onComplete(buffer);
+                  return;
+                }
+                case 'session.error': {
+                  completed = true;
+                  clearTimeout(timeoutId);
+                  controller.abort();
+                  eventSources.delete(sessionId);
+                  const errMsg = evt.properties?.error?.data?.message
+                    || evt.properties?.error?.message
+                    || evt.properties?.error?.name
+                    || '오류가 발생했습니다';
+                  onComplete(null, errMsg);
+                  return;
+                }
+              }
+            } catch (e) {
+              console.error('SSE 파싱 오류:', e, sseData);
+            }
           }
-          break;
+        }
 
-        case 'message':
-        case 'message-add':
-          // 전체 메시지 완성
-          if (data.message?.content) {
-            buffer = data.message.content;
-            onChunk('');
-          }
-          break;
-
-        case 'done':
-        case 'complete':
-          completed = true;
-          eventSource.close();
-          eventSources.delete(sessionId);
-          onComplete(buffer);
-          break;
-
-        case 'error':
-          completed = true;
-          eventSource.close();
-          eventSources.delete(sessionId);
-          onComplete(null, data.error || '오류가 발생했습니다');
-          break;
+        // 스트림 정상 종료 → Last-Event-ID 로 재연결
+        if (!completed && !controller.signal.aborted) {
+          await new Promise(r => setTimeout(r, 500));
+          connect(currentId);
+        }
+      } catch (error) {
+        if (error.name === 'AbortError') return;
+        console.error('SSE 오류:', error);
+        resolveOnce();
+        if (!completed && !controller.signal.aborted) {
+          await new Promise(r => setTimeout(r, 2000));
+          connect(lastEventId);
+        }
       }
-    } catch (error) {
-      console.error('SSE 파싱 오류:', error);
     }
-  };
 
-  eventSource.onerror = (error) => {
-    console.error('SSE 오류:', error);
-    if (!completed) {
-      eventSource.close();
-      eventSources.delete(sessionId);
-      onComplete(buffer || '', '연결이 종료되었습니다');
-    }
-  };
-
-  eventSources.set(sessionId, eventSource);
-
-  // 타임아웃 설정 (60초)
-  setTimeout(() => {
-    if (!completed) {
-      eventSource.close();
-      eventSources.delete(sessionId);
-      onComplete(buffer || '', '응답 시간 초과');
-    }
-  }, 60000);
+    connect();
+    // 5초 내 server.connected 없으면 강제 resolve
+    setTimeout(resolveOnce, 5000);
+  });
 }
 
 /**
@@ -453,7 +543,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       switch (message.action) {
         case 'init-server':
           const port = await ensureOpenCodeServer();
-          sendResponse({ success: !!port, port, version: serverState.version });
+          sendResponse({ success: !!port, available: !!port, port, version: serverState.version });
           break;
 
         case 'create-session':
@@ -467,12 +557,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             message.sessionId,
             message.message,
             (chunk) => {
-              // 응답 청크 수신
               chrome.runtime.sendMessage({
                 action: 'message-chunk',
                 sessionId: message.sessionId,
                 chunk: chunk
-              });
+              }).catch(() => {});
             },
             (final, error) => {
               // 응답 완료
@@ -487,14 +576,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           sendResponse({ success: true });
           break;
 
+        case 'get-working-directory':
+          sendResponse({ directory: await getWorkingDirectory() });
+          break;
+
+        case 'set-working-directory':
+          await chrome.storage.local.set({ workingDirectory: message.directory });
+          sendResponse({ success: true });
+          break;
+
         case 'get-models':
           const models = await getAvailableModels();
           sendResponse({ success: true, models });
           break;
 
         case 'set-model':
-          const result = await setModel(message.providerId, message.modelName);
-          sendResponse({ success: result });
+          selectedModel = { providerID: message.providerId, modelID: message.modelName };
+          sendResponse({ success: true });
           break;
 
         case 'get-server-state':

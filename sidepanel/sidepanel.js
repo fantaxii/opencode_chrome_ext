@@ -57,17 +57,19 @@
       const optgroup = document.createElement('optgroup');
       optgroup.label = provider.name || provider.id;
       
-      if (provider.models) {
-        provider.models.forEach(model => {
-          const option = document.createElement('option');
-          option.value = JSON.stringify({
-            providerId: provider.id,
-            modelName: model.id || model.name
-          });
-          option.textContent = model.name || model.id;
-          optgroup.appendChild(option);
+      const models = Array.isArray(provider.models)
+        ? provider.models
+        : Object.entries(provider.models || {}).map(([id, m]) => ({ id, ...(typeof m === 'object' ? m : {}) }));
+
+      models.forEach(model => {
+        const option = document.createElement('option');
+        option.value = JSON.stringify({
+          providerId: provider.id,
+          modelName: model.id || model.name
         });
-      }
+        option.textContent = model.name || model.id;
+        optgroup.appendChild(option);
+      });
       
       modelSelect.appendChild(optgroup);
     });
@@ -243,6 +245,15 @@
 
   sendBtn.addEventListener('click', sendMessage);
 
+  const settingsBtn = document.getElementById('settings-btn');
+  settingsBtn.addEventListener('click', async () => {
+    const current = (await sendMessageToBackground('get-working-directory')).directory || '';
+    const dir = prompt('OpenCode 작업 디렉토리를 입력하세요.\n예: /home/user/myproject', current);
+    if (dir !== null) {
+      await sendMessageToBackground('set-working-directory', { directory: dir.trim() });
+    }
+  });
+
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === 'message-chunk' && message.sessionId === currentSessionId) {
       const lastMessage = messagesContainer.querySelector('.bot-message:last-child');
@@ -263,10 +274,30 @@
     } else if (message.action === 'message-complete' && message.sessionId === currentSessionId) {
       isLoading = false;
       loadingIndicator.classList.add('hidden');
-      removeTypingIndicator();
-      
+      sendBtn.disabled = false;
+
       if (message.error) {
+        removeTypingIndicator();
         addErrorMessage(message.error);
+      } else {
+        const typingIndicator = document.getElementById('typing-indicator');
+        if (typingIndicator) {
+          const content = typingIndicator.querySelector('.message-content');
+          if (content && content.textContent.trim()) {
+            // 스트리밍 청크가 쌓인 경우 → 영구 메시지로 변환
+            typingIndicator.classList.remove('typing-indicator');
+            typingIndicator.removeAttribute('id');
+          } else if (message.content && message.content.trim()) {
+            // 청크를 못 받은 경우 → 최종 내용으로 표시
+            content.textContent = message.content.trim();
+            typingIndicator.classList.remove('typing-indicator');
+            typingIndicator.removeAttribute('id');
+          } else {
+            typingIndicator.remove();
+          }
+        } else if (message.content && message.content.trim()) {
+          addBotMessage(message.content.trim());
+        }
       }
     }
   });
