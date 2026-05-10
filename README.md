@@ -369,6 +369,32 @@ yarn release-it
 3. **Git Tag**: 버전 태그 생성
 4. **GitHub Release**: 릴리스 노트와 함께 릴리스 생성
 
+#### 사전 설정: GitHub Token
+
+`.env_example`을 복사해서 `.env` 파일을 만들고 토큰을 입력합니다:
+
+```bash
+cp .env_example .env
+# .env 파일을 열어 GITHUB_TOKEN 값 입력
+```
+
+GitHub Personal Access Token 발급: GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic) → `repo` 권한 체크
+
+#### 릴리스 명령
+
+```bash
+# 버그 수정 (0.0.1 → 0.0.2)
+yarn release-it patch --ci --no-npm
+
+# 기능 추가 (0.0.1 → 0.1.0)
+yarn release-it minor --ci --no-npm
+
+# 호환성 변경 (0.0.1 → 1.0.0)
+yarn release-it major --ci --no-npm
+```
+
+실행 결과: git commit + tag 생성, push, GitHub Release 자동 생성
+
 ### Chrome Web Store 배포
 
 ```bash
