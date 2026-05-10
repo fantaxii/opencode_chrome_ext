@@ -6,7 +6,7 @@
   "scripts": {
     "prebuild": "rm -rf dist",
     "build": "node scripts/build.js",
-    "release": "release-it"
+    "release": "release-it --no-npm"
   },
   "keywords": [
     "chrome-extension",
