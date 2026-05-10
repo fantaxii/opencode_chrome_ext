@@ -1,0 +1,24 @@
+{
+  "name": "opencode-chrome-ext",
+  "version": "1.0.0",
+  "description": "OpenCode를 사이드패널에서 사용하는 Chrome 확장 프로그램",
+  "main": "index.js",
+  "scripts": {
+    "prebuild": "rm -rf dist",
+    "build": "node scripts/build.js",
+    "release": "release-it"
+  },
+  "keywords": [
+    "chrome-extension",
+    "opencode",
+    "ai-coding"
+  ],
+  "author": "",
+  "license": "MIT",
+  "type": "commonjs",
+  "devDependencies": {
+    "archiver": "^7.0.0",
+    "pngjs": "^7.0.0",
+    "release-it": "^20.0.1"
+  }
+}
