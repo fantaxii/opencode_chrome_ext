@@ -286,6 +286,21 @@ async function deleteSession(sessionId) {
 async function getCurrentTabInfo() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id) {
+      return { tabId: null, url: '', title: '', favIconUrl: '' };
+    }
+
+    const response = await chrome.tabs.sendMessage(tab.id, { action: 'get-page-content' });
+    if (response?.success) {
+      return {
+        tabId: tab.id,
+        url: tab.url,
+        title: tab.title,
+        favIconUrl: tab.favIconUrl,
+        pageContent: response.content
+      };
+    }
+
     return {
       tabId: tab.id,
       url: tab.url,
@@ -321,15 +336,29 @@ async function sendMessage(sessionId, message, tabInfo, onChunk, onComplete) {
     if (workingDir) headers['x-opencode-directory'] = workingDir;
 
     let fullMessage = message;
-    if (tabInfo?.url) {
-      fullMessage = `
+    if (tabInfo?.url || tabInfo?.pageContent) {
+      let pageContext = '';
+      if (tabInfo.url) {
+        pageContext += `
 ---
 현재 페이지 정보:
 - 제목: ${tabInfo.title}
 - URL: ${tabInfo.url}
----
-
-${message}`;
+`;
+      }
+      if (tabInfo.pageContent) {
+        const content = tabInfo.pageContent;
+        if (content.headings?.length) {
+          pageContext += `제목들:\n${content.headings.join('\n')}\n\n`;
+        }
+        if (content.paragraphs?.length) {
+          pageContext += `내용 요약:\n${content.paragraphs.join('\n')}\n\n`;
+        }
+        if (content.selectedText) {
+          pageContext += `선택한 텍스트:\n${content.selectedText}\n\n`;
+        }
+      }
+      fullMessage = pageContext + message;
     }
 
     const promptResponse = await fetch(

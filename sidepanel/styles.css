@@ -91,6 +91,21 @@ body {
   background-color: var(--bg-tertiary);
 }
 
+.fetch-btn {
+  background: none;
+  border: none;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.fetch-btn:hover {
+  color: var(--text-primary);
+}
+
 .connection-status {
   display: flex;
   align-items: center;

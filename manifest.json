@@ -15,7 +15,8 @@
     "activeTab",
     "tabs",
     "nativeMessaging",
-    "storage"
+    "storage",
+    "scripting"
   ],
   "host_permissions": [
     "http://127.0.0.1:*/*"
@@ -36,6 +37,13 @@
   "side_panel": {
     "default_path": "sidepanel/sidepanel.html"
   },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
   "commands": {
     "toggle-side-panel": {
       "suggested_key": {

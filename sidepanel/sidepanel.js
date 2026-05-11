@@ -7,6 +7,7 @@
   const tabInfo = document.getElementById('tab-info');
   const tabTitle = document.getElementById('tab-title');
   const loadingIndicator = document.getElementById('loading-indicator');
+  const fetchContentBtn = document.getElementById('fetch-content-btn');
 
   let currentSessionId = null;
   let currentTabId = null;
@@ -399,6 +400,45 @@
       }
     }
   });
+
+  async function fetchPageContent() {
+    try {
+      const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!activeTab?.id) {
+        addErrorMessage('현재 탭을 찾을 수 없습니다.');
+        return;
+      }
+
+      const response = await chrome.tabs.sendMessage(activeTab.id, { action: 'get-page-content' });
+      if (response?.success) {
+        const content = response.content;
+        let contentSummary = '';
+
+        if (content.headings?.length) {
+          contentSummary += `제목들:\n${content.headings.join('\n')}\n\n`;
+        }
+        if (content.paragraphs?.length) {
+          contentSummary += `내용 요약:\n${content.paragraphs.join('\n')}\n\n`;
+        }
+        if (content.selectedText) {
+          contentSummary += `선택한 텍스트:\n${content.selectedText}\n\n`;
+        }
+
+        if (contentSummary) {
+          addBotMessage(`페이지 콘텐츠를 가져왔습니다:\n\n${contentSummary}`);
+        } else {
+          addBotMessage('페이지에 표시할 콘텐츠가 없습니다.');
+        }
+      } else {
+        addErrorMessage('페이지 콘텐츠를 가져오지 못했습니다.');
+      }
+    } catch (error) {
+      console.error('페이지 콘텐츠 가져오기 실패:', error);
+      addErrorMessage('페이지 콘텐츠를 가져오지 못했습니다: ' + error.message);
+    }
+  }
+
+  fetchContentBtn.addEventListener('click', fetchPageContent);
 
   init();
 })();
