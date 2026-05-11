@@ -17,12 +17,31 @@
     updateConnectionStatus('connecting');
 
     try {
-      const serverState = await sendMessageToBackground('init-server');
-      
+      const [serverState, tabInfoData] = await Promise.all([
+        sendMessageToBackground('init-server'),
+        sendMessageToBackground('get-tab-info')
+      ]);
+
+      if (tabInfoData?.title) {
+        tabTitle.textContent = tabInfoData.title;
+        tabInfo.title = tabInfoData.url;
+      }
+
       if (serverState.success && serverState.available) {
         updateConnectionStatus('connected');
         await loadModels();
-        await createNewSession();
+
+        const result = await sendMessageToBackground('get-tab-session', {
+          tabId: tabInfoData?.tabId,
+          title: tabInfoData?.title || 'New Chat'
+        });
+
+        if (result.success) {
+          currentSessionId = result.sessionId;
+          if (result.isNew && tabInfoData?.title) {
+            addPageContextMessage(tabInfoData.title, tabInfoData.url);
+          }
+        }
       } else {
         updateConnectionStatus('disconnected');
       }
@@ -30,12 +49,24 @@
       console.error('초기화 실패:', error);
       updateConnectionStatus('error');
     }
+  }
 
-    const tabInfoData = await sendMessageToBackground('get-tab-info');
-    if (tabInfoData && tabInfoData.title) {
-      tabTitle.textContent = tabInfoData.title;
-      tabInfo.title = tabInfoData.url;
-    }
+  function addPageContextMessage(title, url) {
+    const welcome = messagesContainer.querySelector('.welcome-message');
+    if (welcome) welcome.remove();
+
+    const div = document.createElement('div');
+    div.className = 'message bot-message';
+    div.innerHTML = `
+      <div class="message-avatar">🌐</div>
+      <div class="message-content">
+        <strong>${escapeHtml(title)}</strong><br>
+        <small style="opacity:0.6;word-break:break-all">${escapeHtml(url)}</small><br><br>
+        이 페이지에 대해 요약, 설명, 검색 등을 요청해보세요.
+      </div>
+    `;
+    messagesContainer.insertBefore(div, messagesContainer.firstChild);
+    scrollToBottom();
   }
 
   async function loadModels() {

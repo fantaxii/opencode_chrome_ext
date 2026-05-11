@@ -30,9 +30,19 @@ let serverState = {
 };
 
 let sessions = new Map();
+let tabSessions = new Map(); // tabId → sessionId
 let currentSessionId = null;
 let eventSources = new Map();
 let selectedModel = null; // { providerID, modelID }
+
+// 탭 닫힐 때 세션 정리
+chrome.tabs.onRemoved.addListener((tabId) => {
+  const sessionId = tabSessions.get(tabId);
+  if (sessionId) {
+    deleteSession(sessionId).catch(() => {});
+    tabSessions.delete(tabId);
+  }
+});
 
 // ============================================
 // 서버 상태 관리
@@ -266,12 +276,13 @@ async function getCurrentTabInfo() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     return {
+      tabId: tab.id,
       url: tab.url,
       title: tab.title,
       favIconUrl: tab.favIconUrl
     };
   } catch (error) {
-    return { url: '', title: '', favIconUrl: '' };
+    return { tabId: null, url: '', title: '', favIconUrl: '' };
   }
 }
 
@@ -575,6 +586,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           );
           sendResponse({ success: true });
           break;
+
+        case 'get-tab-session': {
+          const tabId = message.tabId;
+          const existingId = tabId ? tabSessions.get(tabId) : null;
+          if (existingId && sessions.has(existingId)) {
+            sendResponse({ success: true, sessionId: existingId, isNew: false });
+          } else {
+            const newId = await createSession(message.title || 'New Chat');
+            if (tabId) tabSessions.set(tabId, newId);
+            currentSessionId = newId;
+            sendResponse({ success: true, sessionId: newId, isNew: true });
+          }
+          break;
+        }
 
         case 'get-working-directory':
           sendResponse({ directory: await getWorkingDirectory() });
