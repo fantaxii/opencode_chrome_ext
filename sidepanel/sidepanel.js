@@ -122,6 +122,22 @@
       if (result.success && result.models) {
         availableModels = result.models;
         updateModelSelect();
+
+        // 이전에 선택했던 모델 복원
+        const { model } = await sendMessageToBackground('get-current-model');
+        if (model) {
+          for (const option of modelSelect.options) {
+            if (!option.value) continue;
+            try {
+              const info = JSON.parse(option.value);
+              if (info.providerId === model.providerID && info.modelName === model.modelID) {
+                modelSelect.value = option.value;
+                selectedModel = info;
+                break;
+              }
+            } catch {}
+          }
+        }
       }
     } catch (error) {
       console.error('모델 로드 실패:', error);

@@ -36,6 +36,11 @@ let currentSessionId = null;
 let eventSources = new Map();
 let selectedModel = null; // { providerID, modelID }
 
+// 저장된 모델 복원 (SW 재시작 시에도 유지)
+chrome.storage.local.get('selectedModel').then(({ selectedModel: saved }) => {
+  if (saved) selectedModel = saved;
+}).catch(() => {});
+
 // 탭 닫힐 때 세션 및 활성 탭 정리
 chrome.tabs.onRemoved.addListener((tabId) => {
   activeTabs.delete(tabId);
@@ -566,6 +571,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
 
         case 'send-message':
+          // SW 재시작으로 sessions Map이 초기화된 경우 세션 재등록
+          if (!sessions.has(message.sessionId)) {
+            const recoveredPort = await ensureOpenCodeServer();
+            if (recoveredPort) {
+              sessions.set(message.sessionId, {
+                id: message.sessionId,
+                port: recoveredPort,
+                active: true
+              });
+            }
+          }
           await sendMessage(
             message.sessionId,
             message.message,
@@ -621,8 +637,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           sendResponse({ success: true, models });
           break;
 
+        case 'get-current-model':
+          sendResponse({ model: selectedModel });
+          break;
+
         case 'set-model':
           selectedModel = { providerID: message.providerId, modelID: message.modelName };
+          chrome.storage.local.set({ selectedModel }).catch(() => {});
           sendResponse({ success: true });
           break;
 
