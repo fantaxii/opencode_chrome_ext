@@ -300,7 +300,7 @@ async function getCurrentTabInfo() {
 /**
  * 메시지 전송
  */
-async function sendMessage(sessionId, message, onChunk, onComplete) {
+async function sendMessage(sessionId, message, tabInfo, onChunk, onComplete) {
   const session = sessions.get(sessionId);
   if (!session) {
     throw new Error('세션을 찾을 수 없음');
@@ -312,10 +312,21 @@ async function sendMessage(sessionId, message, onChunk, onComplete) {
   }
 
   try {
-    // 1. 프롬프트 먼저 전송 (비동기 처리 시작)
     const workingDir = await getWorkingDirectory();
     const headers = { 'Content-Type': 'application/json' };
     if (workingDir) headers['x-opencode-directory'] = workingDir;
+
+    let fullMessage = message;
+    if (tabInfo?.url) {
+      fullMessage = `
+---
+현재 페이지 정보:
+- 제목: ${tabInfo.title}
+- URL: ${tabInfo.url}
+---
+
+${message}`;
+    }
 
     const promptResponse = await fetch(
       `http://127.0.0.1:${port}/session/${sessionId}/prompt_async`,
@@ -324,7 +335,7 @@ async function sendMessage(sessionId, message, onChunk, onComplete) {
         headers,
         body: JSON.stringify({
           ...(selectedModel && { model: selectedModel }),
-          parts: [{ type: 'text', text: message }]
+          parts: [{ type: 'text', text: fullMessage }]
         })
       }
     );
@@ -332,7 +343,6 @@ async function sendMessage(sessionId, message, onChunk, onComplete) {
       throw new Error(`메시지 전송 실패: ${promptResponse.status}`);
     }
 
-    // 2. 프롬프트 전송 후 SSE 구독 (서버가 처리 중일 때 연결)
     subscribeToEvents(sessionId, port, onChunk, onComplete);
   } catch (error) {
     console.error('메시지 전송 오류:', error);
@@ -441,6 +451,13 @@ function subscribeToEvents(sessionId, port, onChunk, onComplete) {
                   const info = evt.properties?.info;
                   if (info?.role === 'assistant' && info?.sessionID === sessionId) {
                     assistantMessageId = info.id;
+
+                    // 현재 선택된 모델 정보 감지 및 저장
+                    if (info.modelID && info.providerID) {
+                      selectedModel = { providerID: info.providerID, modelID: info.modelID };
+                      chrome.storage.local.set({ selectedModel }).catch(() => {});
+                      console.log('모델 정보 저장됨:', selectedModel);
+                    }
                   }
                   break;
                 }
@@ -571,7 +588,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
 
         case 'send-message':
-          // SW 재시작으로 sessions Map이 초기화된 경우 세션 재등록
           if (!sessions.has(message.sessionId)) {
             const recoveredPort = await ensureOpenCodeServer();
             if (recoveredPort) {
@@ -582,9 +598,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               });
             }
           }
+          const tabInfo = await getCurrentTabInfo();
           await sendMessage(
             message.sessionId,
             message.message,
+            tabInfo,
             (chunk) => {
               chrome.runtime.sendMessage({
                 action: 'message-chunk',
@@ -593,7 +611,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               }).catch(() => {});
             },
             (final, error) => {
-              // 응답 완료
               chrome.runtime.sendMessage({
                 action: 'message-complete',
                 sessionId: message.sessionId,
@@ -656,8 +673,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
 
         case 'get-tab-info':
-          const tabInfo = await getCurrentTabInfo();
-          sendResponse(tabInfo);
+          const currentTabInfo = await getCurrentTabInfo();
+          sendResponse(currentTabInfo);
           break;
 
         case 'get-session':
