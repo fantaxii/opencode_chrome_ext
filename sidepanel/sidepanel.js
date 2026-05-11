@@ -9,6 +9,7 @@
   const loadingIndicator = document.getElementById('loading-indicator');
 
   let currentSessionId = null;
+  let currentTabId = null;
   let isLoading = false;
   let availableModels = [];
   let selectedModel = null;
@@ -37,6 +38,7 @@
 
   async function reinitForTab(tab) {
     // UI 초기화
+    currentTabId = tab.id;
     currentSessionId = null;
     isLoading = false;
     loadingIndicator.classList.add('hidden');
@@ -75,13 +77,24 @@
     }
   }
 
-  // 탭 전환 시 Side Panel 갱신
+  // 탭 전환 시 — 다른 탭이고 해당 탭에 세션이 있을 때만 갱신
   chrome.tabs.onActivated.addListener(async (activeInfo) => {
+    if (activeInfo.tabId === currentTabId) return; // 같은 탭, 무시
     try {
+      const response = await sendMessageToBackground('has-tab-session', { tabId: activeInfo.tabId });
+      if (!response.has) return; // 이 탭에는 extension 없음
       const tab = await chrome.tabs.get(activeInfo.tabId);
       await reinitForTab(tab);
-    } catch (e) {
-      // 탭 접근 불가 (chrome:// 등)
+    } catch (e) {}
+  });
+
+  // background의 action.onClicked에서 전송 — 새 탭에서 아이콘 클릭 시
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message.action === 'reinit-for-tab') {
+      chrome.tabs.get(message.tabId, (tab) => {
+        if (chrome.runtime.lastError || !tab) return;
+        reinitForTab(tab);
+      });
     }
   });
 

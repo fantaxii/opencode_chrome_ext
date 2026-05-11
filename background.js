@@ -31,12 +31,14 @@ let serverState = {
 
 let sessions = new Map();
 let tabSessions = new Map(); // tabId → sessionId
+let activeTabs = new Set();  // 사용자가 명시적으로 extension을 연 tabId 목록
 let currentSessionId = null;
 let eventSources = new Map();
 let selectedModel = null; // { providerID, modelID }
 
-// 탭 닫힐 때 세션 정리
+// 탭 닫힐 때 세션 및 활성 탭 정리
 chrome.tabs.onRemoved.addListener((tabId) => {
+  activeTabs.delete(tabId);
   const sessionId = tabSessions.get(tabId);
   if (sessionId) {
     deleteSession(sessionId).catch(() => {});
@@ -587,6 +589,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           sendResponse({ success: true });
           break;
 
+        case 'has-tab-session':
+          sendResponse({ has: tabSessions.has(message.tabId) });
+          break;
+
         case 'get-tab-session': {
           const tabId = message.tabId;
           const existingId = tabId ? tabSessions.get(tabId) : null;
@@ -650,26 +656,42 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 // ============================================
-// 사이드패널 이벤트
+// 사이드패널 이벤트 (탭별 독립 제어)
 // ============================================
 
+// 아이콘 클릭 시 해당 탭에만 Panel 활성화
 try {
   if (chrome.sidePanel) {
-    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
-    chrome.sidePanel.setOptions({
+    // 전역 자동 열기 비활성화 — 탭별로 수동 제어
+    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false }).catch(() => {});
+    // 전역 기본값: 비활성
+    chrome.sidePanel.setOptions({ enabled: false }).catch(() => {});
+  }
+} catch (e) {}
+
+chrome.action.onClicked.addListener(async (tab) => {
+  if (!chrome.sidePanel) return;
+  try {
+    // 해당 탭에만 Panel 활성화 후 열기
+    await chrome.sidePanel.setOptions({
+      tabId: tab.id,
       path: 'sidepanel/sidepanel.html',
       enabled: true
+    });
+    await chrome.sidePanel.open({ tabId: tab.id });
+    activeTabs.add(tab.id);
+
+    // sidepanel에 해당 탭 초기화 요청
+    chrome.runtime.sendMessage({
+      action: 'reinit-for-tab',
+      tabId: tab.id
     }).catch(() => {});
-    
-    if (chrome.sidePanel.onShown) {
-      chrome.sidePanel.onShown.addListener(async (tab) => {
-        console.log('사이드패널 표시:', tab.id);
-      });
-    }
+  } catch (e) {
+    console.error('사이드패널 열기 실패:', e.message);
   }
-} catch (e) {
-  console.log('sidePanel init error:', e.message);
-}
+});
+
+// 탭 전환 시 Panel 자동 닫힘은 Chrome이 setOptions({enabled}) 기반으로 처리
 
 // ============================================
 // Native Messaging 연결 테스트
