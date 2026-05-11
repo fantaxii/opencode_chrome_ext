@@ -10,47 +10,44 @@
   <div class="app-container">
     <header class="header">
       <div class="header-left">
-        <span class="logo">🤖</span>
-        <span class="title">OpenCode Chat</span>
+        <span class="connection-indicator">●</span>
+        <span class="connection-text" id="connection-text">연결 안됨</span>
       </div>
       <div class="header-right">
-        <select id="model-select" class="model-select">
-          <option value="">모델 선택</option>
-        </select>
-        <button id="settings-btn" class="icon-btn" title="설정">⚙️</button>
+        <span class="header-placeholder">MCP 정보</span>
+        <span class="header-placeholder">PowerShell</span>
+        <span class="header-placeholder">Working Folder</span>
       </div>
     </header>
 
-    <div id="connection-status" class="connection-status">
-      <span class="status-dot"></span>
-      <span class="status-text">연결 안됨</span>
-    </div>
-
     <div id="messages-container" class="messages-container">
-      <div class="welcome-message">
-        <div class="message bot-message">
-          <div class="message-avatar">🤖</div>
-          <div class="message-content">
-            <p>안녕하세요! OpenCode Chat입니다.</p>
-            <p>무엇을 도와드릴까요?</p>
-          </div>
+      <div class="welcome-section">
+        <div class="opencode-icon">■</div>
+        <div class="page-info">
+          <div class="page-icon">🌐</div>
+          <div class="page-title" id="page-title">Z.ai - Inspiring AGI to Benefit Humanity</div>
+          <div class="page-url" id="page-url">https://z.ai/manage-apikey/billing</div>
         </div>
+        <p class="welcome-text">이 페이지에 대해 요약, 설명, 검색 등을 요청해보세요.</p>
       </div>
     </div>
-
-    <div class="input-container">
-      <div class="tab-info" id="tab-info">
-        <span class="tab-icon">🌐</span>
-        <span class="tab-title" id="tab-title">현재 페이지 정보 없음</span>
-        <button id="fetch-content-btn" class="fetch-btn" title="페이지 콘텐츠 가져오기">📄</button>
-      </div>
+    <div class="input-area">
       <div class="input-wrapper">
+        <button id="attach-btn" class="attach-btn" title="첨파일">+</button>
         <textarea
           id="message-input"
           placeholder="메시지를 입력하세요..."
           rows="1"
         ></textarea>
-        <button id="send-btn" class="send-btn" disabled>📤</button>
+        <button id="send-btn" class="send-btn" disabled>↑</button>
+      </div>
+      <div class="selectors-wrapper">
+        <select id="mode-select" class="mode-select">
+          <option value="">Mode 선택</option>
+        </select>
+        <select id="model-select" class="model-select">
+          <option value="">모델 선택</option>
+        </select>
       </div>
     </div>
   </div>

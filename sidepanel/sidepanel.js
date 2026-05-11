@@ -3,11 +3,13 @@
   const messageInput = document.getElementById('message-input');
   const sendBtn = document.getElementById('send-btn');
   const modelSelect = document.getElementById('model-select');
-  const connectionStatus = document.getElementById('connection-status');
-  const tabInfo = document.getElementById('tab-info');
-  const tabTitle = document.getElementById('tab-title');
+  const modeSelect = document.getElementById('mode-select');
+  const header = document.querySelector('.header');
+  const connectionText = document.getElementById('connection-text');
+  const pageTitle = document.getElementById('page-title');
+  const pageUrl = document.getElementById('page-url');
   const loadingIndicator = document.getElementById('loading-indicator');
-  const fetchContentBtn = document.getElementById('fetch-content-btn');
+  const attachBtn = document.getElementById('attach-btn');
 
   let currentSessionId = null;
   let currentTabId = null;
@@ -38,30 +40,17 @@
   }
 
   async function reinitForTab(tab) {
-    // UI 초기화
     currentTabId = tab.id;
     currentSessionId = null;
     isLoading = false;
     loadingIndicator.classList.add('hidden');
     sendBtn.disabled = !messageInput.value.trim();
-    messagesContainer.innerHTML = `
-      <div class="welcome-message">
-        <div class="message bot-message">
-          <div class="message-avatar">🤖</div>
-          <div class="message-content">
-            <p>안녕하세요! OpenCode Chat입니다.</p>
-            <p>무엇을 도와드릴까요?</p>
-          </div>
-        </div>
-      </div>`;
 
-    // 탭 정보 표시
     if (tab.title) {
-      tabTitle.textContent = tab.title;
-      tabInfo.title = tab.url || '';
+      pageTitle.textContent = tab.title;
+      pageUrl.textContent = tab.url || '';
     }
 
-    // 탭별 세션 조회/생성
     try {
       const result = await sendMessageToBackground('get-tab-session', {
         tabId: tab.id,
@@ -286,21 +275,20 @@
   }
 
   function updateConnectionStatus(status) {
-    connectionStatus.className = 'connection-status ' + status;
-    const statusText = connectionStatus.querySelector('.status-text');
-    
+    header.classList.remove('connected');
     switch (status) {
       case 'connected':
-        statusText.textContent = '연결됨';
+        header.classList.add('connected');
+        connectionText.textContent = '연결됨';
         break;
       case 'connecting':
-        statusText.textContent = '연결 중...';
+        connectionText.textContent = '연결 중...';
         break;
       case 'disconnected':
-        statusText.textContent = '연결 안됨';
+        connectionText.textContent = '연결 안됨';
         break;
       case 'error':
-        statusText.textContent = '오류';
+        connectionText.textContent = '오류';
         break;
     }
   }
@@ -343,15 +331,6 @@
   });
 
   sendBtn.addEventListener('click', sendMessage);
-
-  const settingsBtn = document.getElementById('settings-btn');
-  settingsBtn.addEventListener('click', async () => {
-    const current = (await sendMessageToBackground('get-working-directory')).directory || '';
-    const dir = prompt('OpenCode 작업 디렉토리를 입력하세요.\n예: /home/user/myproject', current);
-    if (dir !== null) {
-      await sendMessageToBackground('set-working-directory', { directory: dir.trim() });
-    }
-  });
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === 'message-chunk' && message.sessionId === currentSessionId) {
@@ -400,45 +379,6 @@
       }
     }
   });
-
-  async function fetchPageContent() {
-    try {
-      const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (!activeTab?.id) {
-        addErrorMessage('현재 탭을 찾을 수 없습니다.');
-        return;
-      }
-
-      const response = await chrome.tabs.sendMessage(activeTab.id, { action: 'get-page-content' });
-      if (response?.success) {
-        const content = response.content;
-        let contentSummary = '';
-
-        if (content.headings?.length) {
-          contentSummary += `제목들:\n${content.headings.join('\n')}\n\n`;
-        }
-        if (content.paragraphs?.length) {
-          contentSummary += `내용 요약:\n${content.paragraphs.join('\n')}\n\n`;
-        }
-        if (content.selectedText) {
-          contentSummary += `선택한 텍스트:\n${content.selectedText}\n\n`;
-        }
-
-        if (contentSummary) {
-          addBotMessage(`페이지 콘텐츠를 가져왔습니다:\n\n${contentSummary}`);
-        } else {
-          addBotMessage('페이지에 표시할 콘텐츠가 없습니다.');
-        }
-      } else {
-        addErrorMessage('페이지 콘텐츠를 가져오지 못했습니다.');
-      }
-    } catch (error) {
-      console.error('페이지 콘텐츠 가져오기 실패:', error);
-      addErrorMessage('페이지 콘텐츠를 가져오지 못했습니다: ' + error.message);
-    }
-  }
-
-  fetchContentBtn.addEventListener('click', fetchPageContent);
 
   init();
 })();
