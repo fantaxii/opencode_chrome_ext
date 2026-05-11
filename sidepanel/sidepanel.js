@@ -119,12 +119,13 @@
   async function loadModels() {
     try {
       const result = await sendMessageToBackground('get-models');
+      console.log('[loadModels] get-models result:', result);
       if (result.success && result.models) {
         availableModels = result.models;
         updateModelSelect();
 
-        // 이전에 선택했던 모델 복원
         const { model } = await sendMessageToBackground('get-current-model');
+        console.log('[loadModels] get-current-model result:', model);
         if (model) {
           for (const option of modelSelect.options) {
             if (!option.value) continue;
@@ -133,10 +134,13 @@
               if (info.providerId === model.providerID && info.modelName === model.modelID) {
                 modelSelect.value = option.value;
                 selectedModel = info;
+                console.log('[loadModels] model selected:', modelSelect.value);
                 break;
               }
             } catch {}
           }
+        } else {
+          console.log('[loadModels] no model found in storage');
         }
       }
     } catch (error) {

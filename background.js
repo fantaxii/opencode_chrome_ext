@@ -619,6 +619,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       switch (message.action) {
         case 'init-server':
           const port = await ensureOpenCodeServer();
+          if (port && !selectedModel) {
+            await syncModelFromServer(port);
+            if (!selectedModel) {
+              const models = await getAvailableModels();
+              if (models.length > 0 && models[0].models) {
+                const provider = models[0];
+                const firstModel = Array.isArray(provider.models)
+                  ? provider.models[0]
+                  : Object.values(provider.models)[0];
+                if (firstModel) {
+                  selectedModel = {
+                    providerID: provider.id,
+                    modelID: firstModel.id || firstModel.name
+                  };
+                  chrome.storage.local.set({ selectedModel });
+                  console.log('첫 번째 model 자동 선택:', selectedModel);
+                }
+              }
+            }
+          }
           sendResponse({ success: !!port, available: !!port, port, version: serverState.version });
           break;
 
