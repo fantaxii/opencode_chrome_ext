@@ -135,7 +135,8 @@ async function ensureOpenCodeServer() {
   serverState.checking = true;
 
   try {
-    // 1. 기존 서버 확인
+    let port = null;
+
     const existingPort = await findAvailablePort();
     if (existingPort) {
       serverState.port = existingPort;
@@ -143,25 +144,28 @@ async function ensureOpenCodeServer() {
       const health = await checkServerHealth(existingPort);
       serverState.version = health.version;
       console.log(`기존 OpenCode 서버 발견: 포트 ${existingPort}`);
-      return existingPort;
-    }
+      port = existingPort;
+    } else {
+      console.log('OpenCode 서버 없음, Native Messaging으로 시작 시도...');
+      const startedPort = await startServerWithNativeMessaging();
 
-    // 2. Native Messaging으로 서버 시작 시도
-    console.log('OpenCode 서버 없음, Native Messaging으로 시작 시도...');
-    const startedPort = await startServerWithNativeMessaging();
-    
-    if (startedPort) {
-      // 3. 서버 시작 대기
-      const port = await waitForServer();
-      if (port) {
-        serverState.port = port;
-        serverState.available = true;
-        const health = await checkServerHealth(port);
-        serverState.version = health.version;
-        console.log(`OpenCode 서버 시작 완료: 포트 ${port}`);
-        return port;
+      if (startedPort) {
+        port = await waitForServer();
+        if (port) {
+          serverState.port = port;
+          serverState.available = true;
+          const health = await checkServerHealth(port);
+          serverState.version = health.version;
+          console.log(`OpenCode 서버 시작 완료: 포트 ${port}`);
+        }
       }
     }
+
+    if (port && !selectedModel) {
+      await syncModelFromServer(port);
+    }
+
+    if (port) return port;
 
     console.error('OpenCode 서버 시작 실패');
     return null;
@@ -526,6 +530,24 @@ function subscribeToEvents(sessionId, port, onChunk, onComplete) {
 }
 
 /**
+ * 현재 서버 설정 가져오기
+ */
+async function getCurrentServerConfig() {
+  const port = await ensureOpenCodeServer();
+  if (!port) return null;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/config`);
+    if (response.ok) {
+      return await response.json();
+    }
+  } catch (error) {
+    console.error('서버 설정 가져오기 실패:', error);
+  }
+  return null;
+}
+
+/**
  * 모델 목록 가져오기
  */
 async function getAvailableModels() {
@@ -564,6 +586,25 @@ async function setModel(providerId, modelName) {
   } catch (error) {
     console.error('모델 변경 실패:', error);
     return false;
+  }
+}
+
+/**
+ * 서버의 현재 모델 정보를 동기화
+ */
+async function syncModelFromServer(port) {
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/config`);
+    if (response.ok) {
+      const config = await response.json();
+      if (config.model && config.provider) {
+        selectedModel = { providerID: config.provider, modelID: config.model };
+        chrome.storage.local.set({ selectedModel });
+        console.log('서버 모델 동기화됨:', selectedModel);
+      }
+    }
+  } catch (error) {
+    console.log('서버 모델 동기화 실패:', error);
   }
 }
 
