@@ -56,7 +56,7 @@ async function build() {
   for (const file of filesToCopy) {
     const src = path.join(rootDir, file.src);
     const dest = path.join(distDir, file.dest);
-    
+
     if (fs.existsSync(src)) {
       if (fs.statSync(src).isDirectory()) {
         copyDir(src, dest);
@@ -68,6 +68,15 @@ async function build() {
     } else {
       console.log(`   ⚠ Missing: ${file.src}`);
     }
+  }
+
+  // manifest.json 버전을 package.json 버전으로 동기화
+  const distManifestPath = path.join(distDir, 'manifest.json');
+  if (fs.existsSync(distManifestPath)) {
+    const manifest = JSON.parse(fs.readFileSync(distManifestPath, 'utf8'));
+    manifest.version = version;
+    fs.writeFileSync(distManifestPath, JSON.stringify(manifest, null, 2));
+    console.log(`   ✓ manifest.json version synced: ${version}`);
   }
 
   try {

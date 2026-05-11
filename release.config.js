@@ -1,6 +1,6 @@
 module.exports = {
   hooks: {
-    'after:bump': 'echo "Version bumped!"',
+    'after:bump': 'yarn build',
     'after:release': 'echo "Successfully released ${version}!"'
   },
   git: {
