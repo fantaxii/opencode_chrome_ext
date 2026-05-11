@@ -1,5 +1,6 @@
 module.exports = {
   hooks: {
+    'before:bump': 'node scripts/bump-version.js ${version}',
     'after:bump': 'yarn build',
     'after:release': 'echo "Successfully released ${version}!"'
   },
