@@ -669,29 +669,32 @@ try {
   }
 } catch (e) {}
 
-chrome.action.onClicked.addListener(async (tab) => {
+// async/await 없이 동기 호출 — user gesture 컨텍스트 유지 필수
+chrome.action.onClicked.addListener((tab) => {
   if (!chrome.sidePanel) return;
-  try {
-    // 해당 탭에만 Panel 활성화 후 열기
-    await chrome.sidePanel.setOptions({
-      tabId: tab.id,
-      path: 'sidepanel/sidepanel.html',
-      enabled: true
-    });
-    await chrome.sidePanel.open({ tabId: tab.id });
-    activeTabs.add(tab.id);
-
-    // sidepanel에 해당 탭 초기화 요청
-    chrome.runtime.sendMessage({
-      action: 'reinit-for-tab',
-      tabId: tab.id
-    }).catch(() => {});
-  } catch (e) {
+  // enabled: true 먼저 (await 없음)
+  chrome.sidePanel.setOptions({
+    tabId: tab.id,
+    path: 'sidepanel/sidepanel.html',
+    enabled: true
+  });
+  // open()은 바로 호출 — 여전히 gesture 컨텍스트 안
+  chrome.sidePanel.open({ tabId: tab.id }).catch((e) => {
     console.error('사이드패널 열기 실패:', e.message);
-  }
+  });
+  activeTabs.add(tab.id);
+  chrome.runtime.sendMessage({ action: 'reinit-for-tab', tabId: tab.id }).catch(() => {});
 });
 
-// 탭 전환 시 Panel 자동 닫힘은 Chrome이 setOptions({enabled}) 기반으로 처리
+// 탭 전환 시 — 활성 탭이면 Panel 유지, 아니면 닫기
+chrome.tabs.onActivated.addListener(({ tabId }) => {
+  if (!chrome.sidePanel) return;
+  if (activeTabs.has(tabId)) {
+    chrome.sidePanel.setOptions({ tabId, path: 'sidepanel/sidepanel.html', enabled: true }).catch(() => {});
+  } else {
+    chrome.sidePanel.setOptions({ tabId, enabled: false }).catch(() => {});
+  }
+});
 
 // ============================================
 // Native Messaging 연결 테스트
