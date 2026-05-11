@@ -290,24 +290,25 @@ async function getCurrentTabInfo() {
       return { tabId: null, url: '', title: '', favIconUrl: '' };
     }
 
-    const response = await chrome.tabs.sendMessage(tab.id, { action: 'get-page-content' });
-    if (response?.success) {
-      return {
-        tabId: tab.id,
-        url: tab.url,
-        title: tab.title,
-        favIconUrl: tab.favIconUrl,
-        pageContent: response.content
-      };
-    }
-
-    return {
+    const result = {
       tabId: tab.id,
       url: tab.url,
       title: tab.title,
       favIconUrl: tab.favIconUrl
     };
+
+    try {
+      const response = await chrome.tabs.sendMessage(tab.id, { action: 'get-page-content' });
+      if (response?.success) {
+        result.pageContent = response.content;
+      }
+    } catch (e) {
+      console.log('content script 호출 실패 (일반적인 웹페이지가 아님):', e.message);
+    }
+
+    return result;
   } catch (error) {
+    console.error('getCurrentTabInfo 오류:', error);
     return { tabId: null, url: '', title: '', favIconUrl: '' };
   }
 }
