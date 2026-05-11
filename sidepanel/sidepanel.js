@@ -17,31 +17,11 @@
     updateConnectionStatus('connecting');
 
     try {
-      const [serverState, tabInfoData] = await Promise.all([
-        sendMessageToBackground('init-server'),
-        sendMessageToBackground('get-tab-info')
-      ]);
-
-      if (tabInfoData?.title) {
-        tabTitle.textContent = tabInfoData.title;
-        tabInfo.title = tabInfoData.url;
-      }
+      const serverState = await sendMessageToBackground('init-server');
 
       if (serverState.success && serverState.available) {
         updateConnectionStatus('connected');
         await loadModels();
-
-        const result = await sendMessageToBackground('get-tab-session', {
-          tabId: tabInfoData?.tabId,
-          title: tabInfoData?.title || 'New Chat'
-        });
-
-        if (result.success) {
-          currentSessionId = result.sessionId;
-          if (result.isNew && tabInfoData?.title) {
-            addPageContextMessage(tabInfoData.title, tabInfoData.url);
-          }
-        }
       } else {
         updateConnectionStatus('disconnected');
       }
@@ -49,7 +29,61 @@
       console.error('초기화 실패:', error);
       updateConnectionStatus('error');
     }
+
+    // 현재 탭으로 초기화
+    const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (activeTab) await reinitForTab(activeTab);
   }
+
+  async function reinitForTab(tab) {
+    // UI 초기화
+    currentSessionId = null;
+    isLoading = false;
+    loadingIndicator.classList.add('hidden');
+    sendBtn.disabled = !messageInput.value.trim();
+    messagesContainer.innerHTML = `
+      <div class="welcome-message">
+        <div class="message bot-message">
+          <div class="message-avatar">🤖</div>
+          <div class="message-content">
+            <p>안녕하세요! OpenCode Chat입니다.</p>
+            <p>무엇을 도와드릴까요?</p>
+          </div>
+        </div>
+      </div>`;
+
+    // 탭 정보 표시
+    if (tab.title) {
+      tabTitle.textContent = tab.title;
+      tabInfo.title = tab.url || '';
+    }
+
+    // 탭별 세션 조회/생성
+    try {
+      const result = await sendMessageToBackground('get-tab-session', {
+        tabId: tab.id,
+        title: tab.title || 'New Chat'
+      });
+      if (result.success) {
+        currentSessionId = result.sessionId;
+        if (result.isNew && tab.title) {
+          addPageContextMessage(tab.title, tab.url);
+        }
+      }
+    } catch (e) {
+      console.error('세션 초기화 실패:', e);
+    }
+  }
+
+  // 탭 전환 시 Side Panel 갱신
+  chrome.tabs.onActivated.addListener(async (activeInfo) => {
+    try {
+      const tab = await chrome.tabs.get(activeInfo.tabId);
+      await reinitForTab(tab);
+    } catch (e) {
+      // 탭 접근 불가 (chrome:// 등)
+    }
+  });
 
   function addPageContextMessage(title, url) {
     const welcome = messagesContainer.querySelector('.welcome-message');
