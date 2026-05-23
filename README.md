@@ -469,6 +469,122 @@ node host.js
 
 ---
 
+## WSL 지원
+
+이 확장 프로그램은 **Windows에 opencode가 없고 WSL에만 설치된 환경**에서도 동작합니다.
+
+### 동작 원리
+
+```
+Chrome Extension (Windows)
+        │
+        ▼
+Native Host (host.js)
+        │
+        ├── 1. which opencode (Windows PATH)  ← 있으면 Windows opencode 사용
+        │
+        └── 2. wsl.exe which opencode         ← 없으면 WSL opencode 사용
+                │
+                └── wsl.exe opencode serve --port 4096
+                        │
+                        ▼
+              WSL 내부에서 opencode 실행
+                        │
+              [WSL2 mirrored networking]
+                        │
+                        ▼
+              127.0.0.1:4096 (Windows에서 접근 가능)
+                        │
+                        ▼
+              Chrome Extension 포트 스캔 탐지 성공
+```
+
+### 전제 조건
+
+| 조건 | 필요 여부 | 비고 |
+|------|----------|------|
+| Windows 11 | **권장** | Windows 10도 가능하나 mirrored 모드 미지원 |
+| WSL2 (버전 0.67.6+) | **필수** | mirrored 모드 지원 최소 버전 |
+| WSL2 mirrored networking | **필수** | install.ps1로 자동 설정 가능 |
+| WSL에 opencode 설치 | **필수** | `wsl opencode --version`으로 확인 |
+| `wsl.exe` (Windows PATH) | **자동** | Windows 11/10 기본 포함 |
+
+### 설치 방법
+
+1. **Native Messaging Host 설치** (Windows 설치 가이드 Step 2 참조)
+2. **install.ps1 실행 시 WSL 설정 안내**:
+   - WSL2 mirrored networking이 설정되어 있는지 확인
+   - 설정되어 있지 않으면 자동 설정 제안 (WSL 재시작 필요)
+   - 수동 설정 가이드 제공
+
+### WSL2 Mirrored Networking 설정
+
+#### 자동 설정 (install.ps1)
+
+```powershell
+# install.ps1 실행 시 자동 안내
+powershell -ExecutionPolicy Bypass -File .\install.ps1
+
+# WSL2 mirrored networking이 없으면:
+# - 설정 여부 확인 메시지 표시
+# - Y 입력 시 자동 설정 + WSL 재시작
+# - N 입력 시 수동 설정 가이드 표시
+```
+
+#### 수동 설정
+
+```powershell
+# 1. %USERPROFILE%\.wslconfig 파일을 열거나 새로 생성
+#    예: C:\Users\<username>\.wslconfig
+
+# 2. 아래 내용 추가:
+[wsl2]
+networkingMode=mirrored
+
+# 3. 모든 WSL 창을 닫고 PowerShell에서 실행:
+wsl.exe --shutdown
+
+# 4. WSL을 다시 열면 설정이 적용됩니다.
+```
+
+### 트러블슈팅
+
+#### WSL에서 opencode를 찾지 못함
+
+```bash
+# WSL에서 opencode 설치 확인
+wsl opencode --version
+
+# 설치되어 있지 않으면 설치:
+wsl npm install -g @opencode/cli
+```
+
+#### WSL2 Mirrored Networking이 작동하지 않음
+
+```bash
+# WSL 버전 확인
+wsl --version
+
+# Windows 11의 경우 버전 0.67.6 이상 필요
+# 버전이 낮으면 업데이트:
+wsl --update
+```
+
+#### 포트 연결 실패
+
+```bash
+# WSL2 mirrored networking이 활성화되었는지 확인:
+# %USERPROFILE%\.wslconfig 파일에 networkingMode=mirrored가 있는지 확인
+
+# WSL 재시작:
+wsl.exe --shutdown
+
+# WSL에서 포트가 열려 있는지 확인:
+wsl netstat -tulpn | grep 4096
+```
+
+---
+
 ## 사용 방법
 
 ### 기본 사용

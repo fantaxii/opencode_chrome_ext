@@ -1,0 +1,12 @@
+{
+  "name": "opencode-chrome-native-host",
+  "version": "1.0.0",
+  "description": "Native Messaging Host for OpenCode Chrome Extension",
+  "main": "host.js",
+  "scripts": {
+    "test": "node host.js --test"
+  },
+  "dependencies": {
+    "which": "^4.0.0"
+  }
+}
