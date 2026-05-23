@@ -26,13 +26,11 @@ function getPageContent() {
                     bodyText;
 
   const headings = Array.from(document.querySelectorAll('h1, h2, h3'))
-    .map(h => h.innerText)
-    .join('\n');
+    .map(h => h.innerText);
 
   const paragraphs = Array.from(document.querySelectorAll('p'))
     .slice(0, 10)
-    .map(p => p.innerText)
-    .join('\n');
+    .map(p => p.innerText);
 
   return {
     title: document.title,
