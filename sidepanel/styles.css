@@ -58,12 +58,26 @@ body {
   color: var(--success);
 }
 
+.header.connecting .connection-indicator {
+  color: var(--accent);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
 .connection-text {
   color: var(--text-secondary);
 }
 
 .header.connected .connection-text {
   color: var(--success);
+}
+
+.header.connecting .connection-text {
+  color: var(--text-secondary);
 }
 
 .header-right {
@@ -246,6 +260,22 @@ body {
   padding: 16px;
   background-color: var(--bg-secondary);
   border-top: 1px solid var(--border);
+  transition: opacity 0.3s ease;
+}
+
+.input-area.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.input-area.disabled #message-input,
+.input-area.disabled #send-btn,
+.input-area.disabled #model-select,
+.input-area.disabled #mode-select,
+.input-area.disabled #attach-btn {
+  background-color: var(--bg-tertiary);
+  cursor: not-allowed;
+  opacity: 0.7;
 }
 
 .input-wrapper {
@@ -374,6 +404,44 @@ body {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+.connecting-indicator {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  z-index: 9999;
+  padding: 40px 50px;
+  background-color: rgba(37, 37, 37, 0.95);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.connecting-indicator.hidden {
+  display: none;
+}
+
+.connecting-message {
+  font-size: 16px;
+  color: var(--text-primary);
+  margin-bottom: 30px;
+  font-weight: 500;
+}
+
+.connecting-spinner {
+  width: 60px;
+  height: 60px;
+  border: 4px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 1.5s ease-in-out infinite;
 }
 
 .typing-indicator {

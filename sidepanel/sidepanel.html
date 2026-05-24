@@ -31,7 +31,7 @@
         <p class="welcome-text">이 페이지에 대해 요약, 설명, 검색 등을 요청해보세요.</p>
       </div>
     </div>
-    <div class="input-area">
+    <div class="input-area" id="input-area">
       <div class="input-wrapper">
         <button id="attach-btn" class="attach-btn" title="첨파일">+</button>
         <textarea
@@ -55,6 +55,11 @@
   <div id="loading-indicator" class="loading-indicator hidden">
     <div class="spinner"></div>
     <span>응답 대기 중...</span>
+  </div>
+
+  <div id="connecting-indicator" class="connecting-indicator hidden">
+    <div class="connecting-message">OpenCode server connecting...</div>
+    <div class="connecting-spinner"></div>
   </div>
 
   <script src="sidepanel.js"></script>

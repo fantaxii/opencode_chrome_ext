@@ -10,6 +10,8 @@
   const pageUrl = document.getElementById('page-url');
   const loadingIndicator = document.getElementById('loading-indicator');
   const attachBtn = document.getElementById('attach-btn');
+  const inputArea = document.getElementById('input-area');
+  const connectingIndicator = document.getElementById('connecting-indicator');
 
   let currentSessionId = null;
   let currentTabId = null;
@@ -275,14 +277,20 @@
   }
 
   function updateConnectionStatus(status) {
-    header.classList.remove('connected');
+    header.classList.remove('connected', 'connecting');
+    inputArea.classList.remove('disabled');
+    connectingIndicator.classList.add('hidden');
+
     switch (status) {
       case 'connected':
         header.classList.add('connected');
         connectionText.textContent = '연결됨';
         break;
       case 'connecting':
+        header.classList.add('connecting');
         connectionText.textContent = '연결 중...';
+        inputArea.classList.add('disabled');
+        connectingIndicator.classList.remove('hidden');
         break;
       case 'disconnected':
         connectionText.textContent = '연결 안됨';
