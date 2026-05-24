@@ -1,4 +1,4 @@
-const { spawn, execSync } = require('child_process');
+const { spawn, execSync, spawnSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
@@ -40,44 +40,39 @@ async function findAvailablePort(startPort = 4096) {
 
 // Windows PATH 및 WSL에서 opencode 경로를 찾는 함수
 async function findOpenCodePath() {
-  console.log('[DEBUG] findOpenCodePath() called - Starting path detection...');
-  
+  console.error('[DEBUG] findOpenCodePath() called - Starting path detection...');
+
   // 1순위: Windows PATH에서 탐색
   try {
-    console.log('[DEBUG] Attempting to find opencode in Windows PATH...');
+    console.error('[DEBUG] Attempting to find opencode in Windows PATH...');
     const windowsPath = require('which').sync('opencode');
-    console.log(`[DEBUG] Found opencode in Windows PATH: ${windowsPath}`);
+    console.error(`[DEBUG] Found opencode in Windows PATH: ${windowsPath}`);
     return { path: windowsPath, isWSL: false };
   } catch (error) {
-    console.log('[DEBUG] opencode not found in Windows PATH:', error.message);
+    console.error('[DEBUG] opencode not found in Windows PATH:', error.message);
   }
 
-  // 2순위: WSL에서 탐색
+  // 2순위: WSL에서 탐색 (spawnSync로 cmd.exe 우회 → interactive login shell로 ~/.bashrc 로드)
   try {
-    console.log('[DEBUG] Attempting to find opencode in WSL...');
-    const wslPath = execSync(
-      'wsl.exe bash -c "' +
-        '[ -s ~/.nvm/nvm.sh ] && source ~/.nvm/nvm.sh 2>/dev/null; ' +
-        '[ -s ~/.cargo/env ] && source ~/.cargo/env 2>/dev/null; ' +
-        '[ -s ~/.local/share/mise/activate.bash ] && eval \\"$(~/.local/bin/mise activate bash 2>/dev/null)\\" 2>/dev/null; ' +
-        '[ -s ~/.asdf/asdf.sh ] && source ~/.asdf/asdf.sh 2>/dev/null; ' +
-        'which opencode 2>/dev/null' +
-      '"',
-      { encoding: 'utf8' }
-    ).trim();
-    console.log(`[DEBUG] WSL returned path: "${wslPath}"`);
-    
-    if (wslPath && !wslPath.includes('not found')) {
-      console.log('[DEBUG] Found opencode in WSL');
+    console.error('[DEBUG] Attempting to find opencode in WSL...');
+    const result = spawnSync('wsl.exe', ['bash', '-ilc', 'which opencode 2>/dev/null'], {
+      encoding: 'utf8',
+      timeout: 10000
+    });
+    const wslPath = (result.stdout || '').trim();
+    console.error(`[DEBUG] WSL returned path: "${wslPath}", stderr: "${(result.stderr || '').trim()}"`);
+
+    if (wslPath) {
+      console.error('[DEBUG] Found opencode in WSL');
       return { path: wslPath, isWSL: true };
     } else {
-      console.log('[DEBUG] WSL opencode not found or not installed');
+      console.error('[DEBUG] WSL opencode not found');
     }
   } catch (error) {
-    console.log('[DEBUG] WSL search failed:', error.message);
+    console.error('[DEBUG] WSL search failed:', error.message);
   }
 
-  console.log('[DEBUG] opencode not found in Windows or WSL');
+  console.error('[DEBUG] opencode not found in Windows or WSL');
   return null;
 }
 
@@ -99,9 +94,9 @@ async function startOpenCodeServer(preferredPort = 4096) {
     currentPort = port;
     
     // opencode 경로 탐지 (Windows → WSL fallback)
-    console.log('[DEBUG] startOpenCodeServer: Calling findOpenCodePath()...');
+    console.error('[DEBUG] startOpenCodeServer: Calling findOpenCodePath()...');
     const found = await findOpenCodePath();
-    console.log('[DEBUG] startOpenCodeServer: findOpenCodePath() result:', found);
+    console.error('[DEBUG] startOpenCodeServer: findOpenCodePath() result:', found);
 
     if (!found) {
       throw new Error('opencode를 찾을 수 없음 (Windows/WSL 모두 확인)');
@@ -109,18 +104,18 @@ async function startOpenCodeServer(preferredPort = 4096) {
 
     // WSL 사용 여부 설정
     isWSL = found.isWSL;
-    console.log(`[DEBUG] isWSL flag set to: ${isWSL}`);
+    console.error(`[DEBUG] isWSL flag set to: ${isWSL}`);
 
     if (isWSL) {
-      // WSL 방식으로 실행
-      console.log('[DEBUG] Spawning opencode in WSL...');
+      // WSL 방식으로 실행 - 찾은 전체 경로로 직접 실행 (bash 우회, TTY 문제 없음)
+      console.error(`[DEBUG] Spawning opencode in WSL with full path: ${found.path}`);
       log(`WSL에서 OpenCode 서버 시작 (포트 ${port})...`);
       opencodeProcess = spawn('wsl.exe', [found.path, 'serve', '--port', port.toString()], {
         stdio: ['pipe', 'pipe', 'pipe']
       });
     } else {
       // Windows 방식 (기존)
-      console.log('[DEBUG] Spawning opencode in Windows...');
+      console.error('[DEBUG] Spawning opencode in Windows...');
       log(`Windows에서 OpenCode 서버 시작 (포트 ${port})...`);
       opencodeProcess = spawn(found.path, ['serve', '--port', port.toString()], {
         stdio: ['pipe', 'pipe', 'pipe']
@@ -168,28 +163,28 @@ async function startOpenCodeServer(preferredPort = 4096) {
 
 function stopOpenCodeServer() {
   if (opencodeProcess) {
-    console.log('[DEBUG] stopOpenCodeServer called. isWSL:', isWSL);
+    console.error('[DEBUG] stopOpenCodeServer called. isWSL:', isWSL);
     opencodeProcess.kill();
     opencodeProcess = null;
     log('OpenCode 서버 종료');
 
     // WSL인 경우 WSL 내부의 opencode 프로세스 추가 종료
     if (isWSL) {
-      console.log('[DEBUG] Attempting to kill WSL opencode process...');
+      console.error('[DEBUG] Attempting to kill WSL opencode process...');
       try {
         // WSL 내부의 opencode 프로세스 PID 찾기 및 종료
         execSync('wsl.exe pkill -f "opencode serve"', { encoding: 'utf8' });
         log('WSL 내부 OpenCode 프로세스 종료');
-        console.log('[DEBUG] WSL opencode process killed successfully');
+        console.error('[DEBUG] WSL opencode process killed successfully');
       } catch (error) {
         // pkill이 프로세스를 찾지 못해도 에러로 처리하지 않음 (이미 종료되었을 수 있음)
-        console.log('[DEBUG] pkill failed (process may already be dead):', error.message);
+        console.error('[DEBUG] pkill failed (process may already be dead):', error.message);
       }
     }
 
     // 플래그 초기화
     isWSL = false;
-    console.log('[DEBUG] isWSL flag reset to false');
+    console.error('[DEBUG] isWSL flag reset to false');
   }
 }
 
@@ -227,48 +222,42 @@ async function handleMessage(message) {
 }
 
 function readMessage() {
-  let lengthBuffer = Buffer.alloc(4);
-  let bytesRead = 0;
-
   return new Promise((resolve, reject) => {
+    let headerBuf = Buffer.alloc(4);
+    let headerBytes = 0;
+    let msgBuf = null;
+    let msgBytes = 0;
+
     const onData = (chunk) => {
-      for (let i = 0; i < chunk.length; i++) {
-        if (bytesRead < 4) {
-          lengthBuffer[bytesRead] = chunk[i];
-          bytesRead++;
+      let offset = 0;
 
-          if (bytesRead === 4) {
-            const length = lengthBuffer.readUInt32LE(0);
-            
-            if (length > 1024 * 1024) {
-              reject(new Error('메시지 너무 큼'));
-              return;
-            }
+      // 4바이트 길이 헤더 읽기
+      while (offset < chunk.length && headerBytes < 4) {
+        headerBuf[headerBytes++] = chunk[offset++];
+      }
+      if (headerBytes < 4) return;
 
-            let messageBuffer = Buffer.alloc(length);
-            let messageBytesRead = 0;
+      // 헤더 완성 후 메시지 버퍼 할당 (1회)
+      if (!msgBuf) {
+        const length = headerBuf.readUInt32LE(0);
+        if (length > 1024 * 1024) {
+          process.stdin.removeListener('data', onData);
+          return reject(new Error('메시지 너무 큼'));
+        }
+        msgBuf = Buffer.alloc(length);
+      }
 
-            const readMessageChunk = (msgChunk) => {
-              for (let j = 0; j < msgChunk.length; j++) {
-                if (messageBytesRead < length) {
-                  messageBuffer[messageBytesRead] = msgChunk[j];
-                  messageBytesRead++;
+      // 메시지 바디 읽기 (헤더와 같은 chunk에 있어도 처리)
+      while (offset < chunk.length && msgBytes < msgBuf.length) {
+        msgBuf[msgBytes++] = chunk[offset++];
+      }
 
-                  if (messageBytesRead === length) {
-                    process.stdin.removeListener('data', readMessageChunk);
-                    try {
-                      const message = JSON.parse(messageBuffer.toString('utf8'));
-                      resolve(message);
-                    } catch (e) {
-                      reject(new Error('잘못된 JSON'));
-                    }
-                  }
-                }
-              }
-            };
-
-            process.stdin.on('data', readMessageChunk);
-          }
+      if (msgBytes === msgBuf.length) {
+        process.stdin.removeListener('data', onData);
+        try {
+          resolve(JSON.parse(msgBuf.toString('utf8')));
+        } catch {
+          reject(new Error('잘못된 JSON'));
         }
       }
     };
@@ -292,8 +281,6 @@ function writeMessage(message) {
 
 async function main() {
   log('Native Messaging Host 시작');
-
-  process.stdin.setEncoding('utf8');
 
   while (true) {
     try {

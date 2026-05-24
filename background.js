@@ -59,17 +59,20 @@ chrome.tabs.onRemoved.addListener((tabId) => {
  * OpenCode 서버 상태 확인
  */
 async function checkServerHealth(port) {
+  console.log(`[checkServerHealth] 포트 ${port} 상태 체크 중...`);
   try {
     const response = await fetch(`http://127.0.0.1:${port}/global/health`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' }
     });
+    console.log(`[checkServerHealth] 포트 ${port} 응답: status=${response.status}, ok=${response.ok}`);
     if (response.ok) {
       const data = await response.json();
+      console.log(`[checkServerHealth] 포트 ${port} 성공 - version=${data.version}`);
       return { available: true, version: data.version };
     }
   } catch (error) {
-    // 서버 연결 실패
+    console.log(`[checkServerHealth] 포트 ${port} 실패:`, error.message);
   }
   return { available: false, version: null };
 }
@@ -78,12 +81,15 @@ async function checkServerHealth(port) {
  * 사용 가능한 포트 찾기
  */
 async function findAvailablePort() {
+  console.log(`[findAvailablePort] ${DEFAULT_PORT} ~ ${DEFAULT_PORT + MAX_PORT_CHECK - 1} 범위 포트 스캔 시작`);
   for (let port = DEFAULT_PORT; port < DEFAULT_PORT + MAX_PORT_CHECK; port++) {
     const state = await checkServerHealth(port);
     if (state.available) {
+      console.log(`[findAvailablePort] 포트 ${port} 발견!`);
       return port;
     }
   }
+  console.log(`[findAvailablePort] 모든 포트 실패 - 사용 가능한 서버 없음`);
   return null;
 }
 
@@ -91,18 +97,22 @@ async function findAvailablePort() {
  * Native Messaging Host를 통해 서버 시작
  */
 async function startServerWithNativeMessaging(preferredPort = DEFAULT_PORT) {
+  console.log(`[startServerWithNativeMessaging] Native Messaging 호출 - preferredPort=${preferredPort}`);
   try {
     const response = await chrome.runtime.sendNativeMessage(NATIVE_HOST_NAME, {
       action: 'start',
       preferredPort: preferredPort
     });
 
+    console.log(`[startServerWithNativeMessaging] Native Messaging 응답:`, response);
     if (response.status === 'success') {
+      console.log(`[startServerWithNativeMessaging] 성공 - port=${response.port}`);
       return response.port;
     }
+    console.error(`[startServerWithNativeMessaging] 실패 - status=${response.status}`);
     return null;
   } catch (error) {
-    console.error('Native Messaging 시작 실패:', error);
+    console.error('[startServerWithNativeMessaging] Native Messaging 시작 실패:', error);
     return null;
   }
 }
@@ -112,15 +122,19 @@ async function startServerWithNativeMessaging(preferredPort = DEFAULT_PORT) {
  */
 async function waitForServer(timeout = SERVER_START_TIMEOUT) {
   const startTime = Date.now();
+  console.log(`[waitForServer] 서버 시작 대기 시작 - timeout=${timeout}ms`);
 
   while (Date.now() - startTime < timeout) {
     const port = await findAvailablePort();
     if (port) {
+      console.log(`[waitForServer] 서버 발견! 포트 ${port}`);
       return port;
     }
+    console.log(`[waitForServer] 서버 못 찾음. 1초 후 재시도... (경과: ${Date.now() - startTime}ms)`);
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
 
+  console.log(`[waitForServer] 타임아웃 - ${timeout}ms 내 서버 없음`);
   return null;
 }
 
@@ -129,10 +143,12 @@ async function waitForServer(timeout = SERVER_START_TIMEOUT) {
  */
 async function ensureOpenCodeServer() {
   if (serverState.checking) {
+    console.log(`[ensureOpenCodeServer] 이미 checking 중입니다. 기존 포트 ${serverState.port} 반환`);
     return serverState.port;
   }
 
   serverState.checking = true;
+  console.log(`[ensureOpenCodeServer] checking=true - 서버 확인 시작`);
 
   try {
     let port = null;
@@ -143,11 +159,12 @@ async function ensureOpenCodeServer() {
       serverState.available = true;
       const health = await checkServerHealth(existingPort);
       serverState.version = health.version;
-      console.log(`기존 OpenCode 서버 발견: 포트 ${existingPort}`);
+      console.log(`[ensureOpenCodeServer] 기존 OpenCode 서버 발견: 포트 ${existingPort}, version=${health.version}`);
       port = existingPort;
     } else {
-      console.log('OpenCode 서버 없음, Native Messaging으로 시작 시도...');
+      console.log(`[ensureOpenCodeServer] OpenCode 서버 없음, Native Messaging으로 시작 시도...`);
       const startedPort = await startServerWithNativeMessaging();
+      console.log(`[ensureOpenCodeServer] Native Messaging 결과: startedPort=${startedPort}`);
 
       if (startedPort) {
         port = await waitForServer();
@@ -156,21 +173,26 @@ async function ensureOpenCodeServer() {
           serverState.available = true;
           const health = await checkServerHealth(port);
           serverState.version = health.version;
-          console.log(`OpenCode 서버 시작 완료: 포트 ${port}`);
+          console.log(`[ensureOpenCodeServer] OpenCode 서버 시작 완료: 포트 ${port}, version=${health.version}`);
         }
       }
     }
 
     if (port && !selectedModel) {
+      console.log(`[ensureOpenCodeServer] 모델 동기화 시작...`);
       await syncModelFromServer(port);
     }
 
-    if (port) return port;
+    if (port) {
+      console.log(`[ensureOpenCodeServer] 성공 - 포트 ${port} 반환`);
+      return port;
+    }
 
-    console.error('OpenCode 서버 시작 실패');
+    console.error(`[ensureOpenCodeServer] OpenCode 서버 시작 실패`);
     return null;
   } finally {
     serverState.checking = false;
+    console.log(`[ensureOpenCodeServer] checking=false - 작업 완료`);
   }
 }
 
@@ -178,11 +200,16 @@ async function ensureOpenCodeServer() {
  * 서버 상태Periodic 확인
  */
 async function periodicServerCheck() {
+  console.log(`[periodicServerCheck] 주기 체크 시작 - 현재 serverState.port=${serverState.port}, available=${serverState.available}`);
   const port = await findAvailablePort();
+  console.log(`[periodicServerCheck] findAvailablePort 결과: port=${port}, 기존 serverState.port=${serverState.port}`);
   if (port !== serverState.port) {
-    console.log('서버 포트 변경 감지, 상태 업데이트...');
+    console.log(`[periodicServerCheck] 서버 포트 변경 감지! ${serverState.port} → ${port}`);
     serverState.port = port;
     serverState.available = !!port;
+    console.log(`[periodicServerCheck] 상태 업데이트 완료 - port=${port}, available=${serverState.available}`);
+  } else {
+    console.log(`[periodicServerCheck] 포트 변경 없음 (${port})`);
   }
 }
 
