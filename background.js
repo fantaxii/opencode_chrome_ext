@@ -812,6 +812,49 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 // ============================================
+// 컨텍스트 메뉴 (우클릭 → 선택 텍스트 전송)
+// ============================================
+
+function createContextMenus() {
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({
+      id: 'send-to-opencode',
+      title: 'OpenCode로 보내기',
+      contexts: ['selection']
+    });
+  });
+}
+
+chrome.runtime.onInstalled.addListener(createContextMenus);
+chrome.runtime.onStartup.addListener(createContextMenus);
+
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId !== 'send-to-opencode') return;
+
+  const selectionText = info.selectionText;
+  if (!selectionText || !tab?.id) return;
+
+  // user gesture 컨텍스트 안에서 await 없이 동기 호출
+  chrome.sidePanel.setOptions({
+    tabId: tab.id,
+    path: 'sidepanel/sidepanel.html',
+    enabled: true
+  });
+  chrome.sidePanel.open({ tabId: tab.id }).catch((e) => {
+    console.error('사이드패널 열기 실패:', e.message);
+  });
+  activeTabs.add(tab.id);
+
+  // 비동기 작업은 패널 열기 이후에
+  chrome.storage.local.set({ pendingContextText: { tabId: tab.id, text: selectionText } })
+    .then(() => {
+      setTimeout(() => {
+        chrome.runtime.sendMessage({ action: 'reinit-for-tab', tabId: tab.id }).catch(() => {});
+      }, 300);
+    });
+});
+
+// ============================================
 // 사이드패널 이벤트 (탭별 독립 제어)
 // ============================================
 

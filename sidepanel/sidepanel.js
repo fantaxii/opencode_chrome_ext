@@ -67,6 +67,19 @@
     } catch (e) {
       console.error('세션 초기화 실패:', e);
     }
+
+    try {
+      const { pendingContextText } = await chrome.storage.local.get('pendingContextText');
+      if (pendingContextText?.tabId === tab.id && pendingContextText?.text) {
+        await chrome.storage.local.remove('pendingContextText');
+        messageInput.value = pendingContextText.text;
+        messageInput.dispatchEvent(new Event('input'));
+        messageInput.focus();
+        messageInput.setSelectionRange(messageInput.value.length, messageInput.value.length);
+      }
+    } catch (e) {
+      console.error('pendingContextText 처리 실패:', e);
+    }
   }
 
   // 탭 전환 시 — 다른 탭이고 해당 탭에 세션이 있을 때만 갱신
