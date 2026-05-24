@@ -74,9 +74,9 @@ $manifestContent = @{
     description     = "OpenCode Chrome Extension Native Messaging Host"
     path            = $hostBatPath
     type            = "stdio"
-    allowed_origins = @("chrome-extension://*")
+    allowed_origins = @("chrome-extension://adiacpiichkecbkodjeddeocfpkhigfg/")
 } | ConvertTo-Json -Depth 3
-[System.IO.File]::WriteAllText($manifestPath, $manifestContent, [System.Text.Encoding]::UTF8)
+[System.IO.File]::WriteAllText($manifestPath, $manifestContent, (New-Object System.Text.UTF8Encoding $false))
 Write-Host "   manifest.json installed (path: $hostBatPath)" -ForegroundColor Gray
 
 Write-Host "2. Registering in registry..." -ForegroundColor Gray

@@ -55,7 +55,16 @@ async function findOpenCodePath() {
   // 2순위: WSL에서 탐색
   try {
     console.log('[DEBUG] Attempting to find opencode in WSL...');
-    const wslPath = execSync('wsl.exe which opencode', { encoding: 'utf8' }).trim();
+    const wslPath = execSync(
+      'wsl.exe bash -c "' +
+        '[ -s ~/.nvm/nvm.sh ] && source ~/.nvm/nvm.sh 2>/dev/null; ' +
+        '[ -s ~/.cargo/env ] && source ~/.cargo/env 2>/dev/null; ' +
+        '[ -s ~/.local/share/mise/activate.bash ] && eval \\"$(~/.local/bin/mise activate bash 2>/dev/null)\\" 2>/dev/null; ' +
+        '[ -s ~/.asdf/asdf.sh ] && source ~/.asdf/asdf.sh 2>/dev/null; ' +
+        'which opencode 2>/dev/null' +
+      '"',
+      { encoding: 'utf8' }
+    ).trim();
     console.log(`[DEBUG] WSL returned path: "${wslPath}"`);
     
     if (wslPath && !wslPath.includes('not found')) {
@@ -106,7 +115,7 @@ async function startOpenCodeServer(preferredPort = 4096) {
       // WSL 방식으로 실행
       console.log('[DEBUG] Spawning opencode in WSL...');
       log(`WSL에서 OpenCode 서버 시작 (포트 ${port})...`);
-      opencodeProcess = spawn('wsl.exe', ['opencode', 'serve', '--port', port.toString()], {
+      opencodeProcess = spawn('wsl.exe', [found.path, 'serve', '--port', port.toString()], {
         stdio: ['pipe', 'pipe', 'pipe']
       });
     } else {
@@ -279,7 +288,6 @@ function writeMessage(message) {
   const stdout = process.stdout;
   stdout.write(lengthBuffer);
   stdout.write(jsonBuffer);
-  stdout.flush();
 }
 
 async function main() {
