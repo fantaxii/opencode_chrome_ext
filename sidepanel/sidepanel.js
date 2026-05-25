@@ -85,8 +85,8 @@
     workingFolderDisplay.classList.remove('hidden');
     workingFolderEditBtn.classList.remove('hidden');
     if (newPath !== currentWorkingDir) {
-      await sendMessageToBackground('set-working-directory', { directory: newPath });
-      updateWorkingFolderDisplay(newPath);
+      const result = await sendMessageToBackground('set-working-directory', { directory: newPath });
+      updateWorkingFolderDisplay(result.directory || newPath);
     }
   }
 

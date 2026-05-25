@@ -234,6 +234,18 @@ async function getWorkingDirectory() {
   }
 }
 
+// Windows 경로(C:\...) → WSL 경로(/mnt/c/...) 변환
+function toWSLPath(p) {
+  if (!p) return '';
+  const m = p.match(/^([A-Za-z]):[\\\/](.*)/);
+  if (m) {
+    const drive = m[1].toLowerCase();
+    const rest = m[2].replace(/\\/g, '/').replace(/\/$/, '');
+    return `/mnt/${drive}/${rest}`;
+  }
+  return p.replace(/\\/g, '/');
+}
+
 // ============================================
 // 세션 관리
 // ============================================
@@ -771,10 +783,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           sendResponse({ directory: await getWorkingDirectory() });
           break;
 
-        case 'set-working-directory':
-          await chrome.storage.local.set({ workingDirectory: message.directory });
-          sendResponse({ success: true });
+        case 'set-working-directory': {
+          const normalized = toWSLPath(message.directory || '');
+          await chrome.storage.local.set({ workingDirectory: normalized });
+          sendResponse({ success: true, directory: normalized });
           break;
+        }
 
         case 'get-models':
           const models = await getAvailableModels();
