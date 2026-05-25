@@ -271,7 +271,6 @@ body {
 .input-area.disabled #message-input,
 .input-area.disabled #send-btn,
 .input-area.disabled #model-select,
-.input-area.disabled #mode-select,
 .input-area.disabled #attach-btn {
   background-color: var(--bg-tertiary);
   cursor: not-allowed;
@@ -311,20 +310,60 @@ body {
   gap: 8px;
 }
 
-.mode-select {
+.working-folder-wrapper {
   flex: 1;
-  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
   background-color: var(--bg-tertiary);
-  color: var(--text-primary);
   border: 1px solid var(--border);
   border-radius: 8px;
   font-size: 12px;
-  cursor: pointer;
+  min-width: 0;
 }
 
-.mode-select:focus {
+.folder-icon {
+  flex-shrink: 0;
+  font-size: 13px;
+}
+
+.working-folder-display {
+  flex: 1;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.working-folder-input {
+  flex: 1;
+  background: transparent;
+  border: none;
   outline: none;
-  border-color: var(--accent);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: inherit;
+  min-width: 0;
+}
+
+.working-folder-edit-btn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 13px;
+  line-height: 1;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+.working-folder-edit-btn:hover {
+  opacity: 1;
+  color: var(--accent);
 }
 
 #message-input {

@@ -3,7 +3,10 @@
   const messageInput = document.getElementById('message-input');
   const sendBtn = document.getElementById('send-btn');
   const modelSelect = document.getElementById('model-select');
-  const modeSelect = document.getElementById('mode-select');
+  const workingFolderDisplay = document.getElementById('working-folder-display');
+  const workingFolderInput = document.getElementById('working-folder-input');
+  const workingFolderEditBtn = document.getElementById('working-folder-edit-btn');
+  let currentWorkingDir = '';
   const header = document.querySelector('.header');
   const connectionText = document.getElementById('connection-text');
   const pageTitle = document.getElementById('page-title');
@@ -24,6 +27,7 @@
 
   async function init() {
     updateConnectionStatus('connecting');
+    loadWorkingDirectory();
 
     try {
       const serverState = await sendMessageToBackground('init-server');
@@ -43,6 +47,58 @@
     const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (activeTab) await reinitForTab(activeTab);
   }
+
+  async function loadWorkingDirectory() {
+    try {
+      const result = await sendMessageToBackground('get-working-directory');
+      currentWorkingDir = result.directory || '';
+      updateWorkingFolderDisplay(currentWorkingDir);
+    } catch (e) {}
+  }
+
+  function updateWorkingFolderDisplay(dir) {
+    currentWorkingDir = dir;
+    if (!dir) {
+      workingFolderDisplay.textContent = '폴더 없음';
+      workingFolderDisplay.title = '';
+      return;
+    }
+    const parts = dir.replace(/\\/g, '/').split('/').filter(Boolean);
+    const short = parts.length > 2 ? '…/' + parts.slice(-2).join('/') : dir;
+    workingFolderDisplay.textContent = short;
+    workingFolderDisplay.title = dir;
+  }
+
+  workingFolderEditBtn.addEventListener('click', () => {
+    workingFolderInput.value = currentWorkingDir;
+    workingFolderDisplay.classList.add('hidden');
+    workingFolderInput.classList.remove('hidden');
+    workingFolderEditBtn.classList.add('hidden');
+    workingFolderInput.focus();
+    workingFolderInput.select();
+  });
+
+  async function commitWorkingFolder() {
+    const newPath = workingFolderInput.value.trim();
+    workingFolderInput.classList.add('hidden');
+    workingFolderDisplay.classList.remove('hidden');
+    workingFolderEditBtn.classList.remove('hidden');
+    if (newPath !== currentWorkingDir) {
+      await sendMessageToBackground('set-working-directory', { directory: newPath });
+      updateWorkingFolderDisplay(newPath);
+    }
+  }
+
+  workingFolderInput.addEventListener('keydown', async (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); await commitWorkingFolder(); }
+    if (e.key === 'Escape') {
+      workingFolderInput.classList.add('hidden');
+      workingFolderDisplay.classList.remove('hidden');
+      workingFolderEditBtn.classList.remove('hidden');
+    }
+  });
+
+  workingFolderInput.addEventListener('blur', commitWorkingFolder);
 
   async function reinitForTab(tab) {
     currentTabId = tab.id;
