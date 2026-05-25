@@ -4,6 +4,7 @@
   const sendBtn = document.getElementById('send-btn');
   const modelSelect = document.getElementById('model-select');
   const workingFolderWrapper = document.getElementById('working-folder-wrapper');
+  const folderIcon = document.getElementById('folder-icon');
   const workingFolderDisplay = document.getElementById('working-folder-display');
   const workingFolderInput = document.getElementById('working-folder-input');
   const workingFolderEditBtn = document.getElementById('working-folder-edit-btn');
@@ -70,20 +71,28 @@
     workingFolderWrapper.title = dir;
   }
 
-  workingFolderEditBtn.addEventListener('click', () => {
+  function enterEditMode() {
     workingFolderInput.value = currentWorkingDir;
+    folderIcon.classList.add('hidden');
     workingFolderDisplay.classList.add('hidden');
-    workingFolderInput.classList.remove('hidden');
     workingFolderEditBtn.classList.add('hidden');
+    workingFolderInput.classList.remove('hidden');
     workingFolderInput.focus();
     workingFolderInput.select();
-  });
+  }
+
+  function exitEditMode() {
+    workingFolderInput.classList.add('hidden');
+    folderIcon.classList.remove('hidden');
+    workingFolderDisplay.classList.remove('hidden');
+    workingFolderEditBtn.classList.remove('hidden');
+  }
+
+  workingFolderEditBtn.addEventListener('click', enterEditMode);
 
   async function commitWorkingFolder() {
     const newPath = workingFolderInput.value.trim();
-    workingFolderInput.classList.add('hidden');
-    workingFolderDisplay.classList.remove('hidden');
-    workingFolderEditBtn.classList.remove('hidden');
+    exitEditMode();
     if (newPath !== currentWorkingDir) {
       const result = await sendMessageToBackground('set-working-directory', { directory: newPath });
       updateWorkingFolderDisplay(result.directory || newPath);
@@ -92,11 +101,7 @@
 
   workingFolderInput.addEventListener('keydown', async (e) => {
     if (e.key === 'Enter') { e.preventDefault(); await commitWorkingFolder(); }
-    if (e.key === 'Escape') {
-      workingFolderInput.classList.add('hidden');
-      workingFolderDisplay.classList.remove('hidden');
-      workingFolderEditBtn.classList.remove('hidden');
-    }
+    if (e.key === 'Escape') { exitEditMode(); }
   });
 
   workingFolderInput.addEventListener('blur', commitWorkingFolder);

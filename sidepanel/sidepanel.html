@@ -16,7 +16,6 @@
       <div class="header-right">
         <span class="header-placeholder">MCP 정보</span>
         <span class="header-placeholder">PowerShell</span>
-        <span class="header-placeholder">Working Folder</span>
       </div>
     </header>
 
@@ -43,10 +42,10 @@
       </div>
       <div class="selectors-wrapper">
         <div class="working-folder-wrapper" id="working-folder-wrapper">
-          <span class="folder-icon">📁</span>
+          <span class="folder-icon" id="folder-icon">📁</span>
           <span id="working-folder-display" class="working-folder-display">폴더 없음</span>
           <input id="working-folder-input" class="working-folder-input hidden" type="text" placeholder="/path/to/folder">
-          <button id="working-folder-edit-btn" class="working-folder-edit-btn" title="Working Folder 변경">✎</button>
+          <button id="working-folder-edit-btn" class="working-folder-edit-btn" title="edit">✎</button>
         </div>
         <select id="model-select" class="model-select">
           <option value="">모델 선택</option>
