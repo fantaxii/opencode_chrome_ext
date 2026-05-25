@@ -92,6 +92,9 @@ body {
 }
 
 .model-select {
+  flex: 1;
+  min-width: 0;
+  max-width: 140px;
   padding: 6px 10px;
   background-color: var(--bg-tertiary);
   color: var(--text-primary);
@@ -311,7 +314,7 @@ body {
 }
 
 .working-folder-wrapper {
-  flex: 1;
+  flex: 2;
   display: flex;
   align-items: center;
   gap: 6px;

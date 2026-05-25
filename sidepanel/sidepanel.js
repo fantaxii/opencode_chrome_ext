@@ -3,6 +3,7 @@
   const messageInput = document.getElementById('message-input');
   const sendBtn = document.getElementById('send-btn');
   const modelSelect = document.getElementById('model-select');
+  const workingFolderWrapper = document.getElementById('working-folder-wrapper');
   const workingFolderDisplay = document.getElementById('working-folder-display');
   const workingFolderInput = document.getElementById('working-folder-input');
   const workingFolderEditBtn = document.getElementById('working-folder-edit-btn');
@@ -60,13 +61,13 @@
     currentWorkingDir = dir;
     if (!dir) {
       workingFolderDisplay.textContent = '폴더 없음';
-      workingFolderDisplay.title = '';
+      workingFolderWrapper.title = '';
       return;
     }
     const parts = dir.replace(/\\/g, '/').split('/').filter(Boolean);
     const short = parts.length > 2 ? '…/' + parts.slice(-2).join('/') : dir;
     workingFolderDisplay.textContent = short;
-    workingFolderDisplay.title = dir;
+    workingFolderWrapper.title = dir;
   }
 
   workingFolderEditBtn.addEventListener('click', () => {
