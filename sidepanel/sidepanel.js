@@ -12,6 +12,9 @@
   const attachBtn = document.getElementById('attach-btn');
   const inputArea = document.getElementById('input-area');
   const connectingIndicator = document.getElementById('connecting-indicator');
+  const connectingMessage = document.getElementById('connecting-message');
+  const connectingSpinner = document.getElementById('connecting-spinner');
+  const retryBtn = document.getElementById('retry-btn');
 
   let currentSessionId = null;
   let currentTabId = null;
@@ -293,6 +296,8 @@
     header.classList.remove('connected', 'connecting');
     inputArea.classList.remove('disabled');
     connectingIndicator.classList.add('hidden');
+    connectingSpinner.classList.remove('hidden');
+    retryBtn.classList.add('hidden');
 
     switch (status) {
       case 'connected':
@@ -303,16 +308,31 @@
         header.classList.add('connecting');
         connectionText.textContent = '연결 중...';
         inputArea.classList.add('disabled');
+        connectingMessage.textContent = 'OpenCode server connecting...';
         connectingIndicator.classList.remove('hidden');
         break;
       case 'disconnected':
         connectionText.textContent = '연결 안됨';
+        inputArea.classList.add('disabled');
+        connectingMessage.textContent = '서버 연결에 실패했습니다';
+        connectingSpinner.classList.add('hidden');
+        retryBtn.classList.remove('hidden');
+        connectingIndicator.classList.remove('hidden');
         break;
       case 'error':
         connectionText.textContent = '오류';
+        inputArea.classList.add('disabled');
+        connectingMessage.textContent = '연결 오류가 발생했습니다';
+        connectingSpinner.classList.add('hidden');
+        retryBtn.classList.remove('hidden');
+        connectingIndicator.classList.remove('hidden');
         break;
     }
   }
+
+  retryBtn.addEventListener('click', () => {
+    init();
+  });
 
   function scrollToBottom() {
     messagesContainer.scrollTop = messagesContainer.scrollHeight;

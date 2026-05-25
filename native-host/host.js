@@ -52,25 +52,31 @@ async function findOpenCodePath() {
     console.error('[DEBUG] opencode not found in Windows PATH:', error.message);
   }
 
-  // 2순위: WSL에서 탐색 (spawnSync로 cmd.exe 우회 → interactive login shell로 ~/.bashrc 로드)
-  try {
-    console.error('[DEBUG] Attempting to find opencode in WSL...');
-    const result = spawnSync('wsl.exe', ['bash', '-ilc', 'which opencode 2>/dev/null'], {
-      encoding: 'utf8',
-      timeout: 10000
-    });
-    const wslPath = (result.stdout || '').trim();
-    console.error(`[DEBUG] WSL returned path: "${wslPath}", stderr: "${(result.stderr || '').trim()}"`);
+  // 2순위: WSL에서 탐색 (최대 3회 재시도 — WSL 초기화 지연 대비)
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      console.error(`[DEBUG] WSL search attempt ${attempt}/3...`);
+      const result = spawnSync('wsl.exe', ['bash', '-ilc', 'which opencode 2>/dev/null'], {
+        encoding: 'utf8',
+        timeout: 8000
+      });
+      const wslPath = (result.stdout || '').trim();
+      console.error(`[DEBUG] WSL attempt ${attempt} path: "${wslPath}", stderr: "${(result.stderr || '').trim()}"`);
 
-    if (wslPath) {
-      console.error('[DEBUG] Found opencode in WSL');
-      return { path: wslPath, isWSL: true };
-    } else {
-      console.error('[DEBUG] WSL opencode not found');
+      if (wslPath) {
+        console.error('[DEBUG] Found opencode in WSL');
+        return { path: wslPath, isWSL: true };
+      }
+    } catch (error) {
+      console.error(`[DEBUG] WSL search attempt ${attempt} failed:`, error.message);
     }
-  } catch (error) {
-    console.error('[DEBUG] WSL search failed:', error.message);
+
+    if (attempt < 3) {
+      console.error(`[DEBUG] Retrying WSL search in 2s...`);
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
   }
+  console.error('[DEBUG] opencode not found in WSL after 3 attempts');
 
   console.error('[DEBUG] opencode not found in Windows or WSL');
   return null;

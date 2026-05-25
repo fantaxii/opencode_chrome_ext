@@ -97,24 +97,33 @@ async function findAvailablePort() {
  * Native Messaging Host를 통해 서버 시작
  */
 async function startServerWithNativeMessaging(preferredPort = DEFAULT_PORT) {
-  console.log(`[startServerWithNativeMessaging] Native Messaging 호출 - preferredPort=${preferredPort}`);
-  try {
-    const response = await chrome.runtime.sendNativeMessage(NATIVE_HOST_NAME, {
-      action: 'start',
-      preferredPort: preferredPort
-    });
+  const MAX_RETRIES = 3;
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    console.log(`[startServerWithNativeMessaging] 시도 ${attempt}/${MAX_RETRIES} - preferredPort=${preferredPort}`);
+    try {
+      const response = await chrome.runtime.sendNativeMessage(NATIVE_HOST_NAME, {
+        action: 'start',
+        preferredPort: preferredPort
+      });
 
-    console.log(`[startServerWithNativeMessaging] Native Messaging 응답:`, response);
-    if (response.status === 'success') {
-      console.log(`[startServerWithNativeMessaging] 성공 - port=${response.port}`);
-      return response.port;
+      console.log(`[startServerWithNativeMessaging] Native Messaging 응답:`, response);
+      if (response.status === 'success') {
+        console.log(`[startServerWithNativeMessaging] 성공 - port=${response.port}`);
+        return response.port;
+      }
+      console.error(`[startServerWithNativeMessaging] 실패 - status=${response.status}, error=${response.error}`);
+    } catch (error) {
+      console.error(`[startServerWithNativeMessaging] 시도 ${attempt} 실패:`, error);
     }
-    console.error(`[startServerWithNativeMessaging] 실패 - status=${response.status}`);
-    return null;
-  } catch (error) {
-    console.error('[startServerWithNativeMessaging] Native Messaging 시작 실패:', error);
-    return null;
+
+    if (attempt < MAX_RETRIES) {
+      const delay = attempt * 2000;
+      console.log(`[startServerWithNativeMessaging] ${delay}ms 후 재시도...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
   }
+  console.error(`[startServerWithNativeMessaging] ${MAX_RETRIES}회 시도 모두 실패`);
+  return null;
 }
 
 /**
