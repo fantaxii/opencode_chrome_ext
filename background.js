@@ -234,13 +234,59 @@ async function getWorkingDirectory() {
   }
 }
 
+async function getServerCwd(port) {
+  return new Promise((resolve) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => { controller.abort(); resolve(''); }, 3000);
+
+    fetch(`http://127.0.0.1:${port}/global/event`, {
+      headers: { Accept: 'text/event-stream', 'Cache-Control': 'no-cache' },
+      signal: controller.signal
+    }).then(async (res) => {
+      if (!res.ok) { clearTimeout(timer); resolve(''); return; }
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let pending = '';
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          pending += dec.decode(value, { stream: true });
+          const parts = pending.split('\n\n');
+          pending = parts.pop();
+          for (const part of parts) {
+            for (const line of part.split('\n')) {
+              if (!line.startsWith('data:')) continue;
+              try {
+                const raw = JSON.parse(line.slice(5).trim());
+                if (raw.directory) {
+                  clearTimeout(timer);
+                  controller.abort();
+                  resolve(raw.directory);
+                  return;
+                }
+              } catch {}
+            }
+          }
+        }
+      } catch {}
+      clearTimeout(timer);
+      resolve('');
+    }).catch(() => { clearTimeout(timer); resolve(''); });
+  });
+}
+
 async function getDefaultDirectory() {
+  // 1. Native host (Windows)
   try {
     const response = await chrome.runtime.sendNativeMessage(NATIVE_HOST_NAME, { action: 'get-home-dir' });
-    return response?.directory || '';
-  } catch {
-    return '';
-  }
+    if (response?.directory) return response.directory;
+  } catch {}
+
+  // 2. OpenCode 서버 SSE 이벤트의 directory 필드 (WSL fallback)
+  if (serverState.available && serverState.port) return await getServerCwd(serverState.port);
+
+  return '';
 }
 
 // Windows 경로(C:\...) → WSL 경로(/mnt/c/...) 변환

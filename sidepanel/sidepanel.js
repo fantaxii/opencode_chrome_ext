@@ -38,6 +38,7 @@
       if (serverState.success && serverState.available) {
         updateConnectionStatus('connected');
         await loadModels();
+        if (!currentWorkingDir) await loadWorkingDirectory();
       } else {
         updateConnectionStatus('disconnected');
       }
