@@ -234,6 +234,15 @@ async function getWorkingDirectory() {
   }
 }
 
+async function getDefaultDirectory() {
+  try {
+    const response = await chrome.runtime.sendNativeMessage(NATIVE_HOST_NAME, { action: 'get-home-dir' });
+    return response?.directory || '';
+  } catch {
+    return '';
+  }
+}
+
 // Windows 경로(C:\...) → WSL 경로(/mnt/c/...) 변환
 function toWSLPath(p) {
   if (!p) return '';
@@ -781,6 +790,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         case 'get-working-directory':
           sendResponse({ directory: await getWorkingDirectory() });
+          break;
+
+        case 'get-default-directory':
+          sendResponse({ directory: await getDefaultDirectory() });
           break;
 
         case 'set-working-directory': {

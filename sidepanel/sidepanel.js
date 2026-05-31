@@ -9,6 +9,7 @@
   const workingFolderInput = document.getElementById('working-folder-input');
   const workingFolderEditBtn = document.getElementById('working-folder-edit-btn');
   let currentWorkingDir = '';
+  let defaultWorkingDir = '';
   const header = document.querySelector('.header');
   const connectionText = document.getElementById('connection-text');
   const pageTitle = document.getElementById('page-title');
@@ -53,26 +54,33 @@
   async function loadWorkingDirectory() {
     try {
       const result = await sendMessageToBackground('get-working-directory');
-      currentWorkingDir = result.directory || '';
-      updateWorkingFolderDisplay(currentWorkingDir);
+      if (result.directory) {
+        updateWorkingFolderDisplay(result.directory);
+      } else {
+        const def = await sendMessageToBackground('get-default-directory');
+        defaultWorkingDir = def.directory || '';
+        updateWorkingFolderDisplay(defaultWorkingDir, true);
+      }
     } catch (e) {}
   }
 
-  function updateWorkingFolderDisplay(dir) {
-    currentWorkingDir = dir;
+  function updateWorkingFolderDisplay(dir, isDefault = false) {
+    if (!isDefault) currentWorkingDir = dir;
     if (!dir) {
       workingFolderDisplay.textContent = '폴더 없음';
       workingFolderWrapper.title = '';
+      workingFolderDisplay.classList.remove('default');
       return;
     }
     const parts = dir.replace(/\\/g, '/').split('/').filter(Boolean);
     const short = parts.length > 2 ? '…/' + parts.slice(-2).join('/') : dir;
     workingFolderDisplay.textContent = short;
-    workingFolderWrapper.title = dir;
+    workingFolderWrapper.title = isDefault ? `기본값: ${dir}` : dir;
+    workingFolderDisplay.classList.toggle('default', isDefault);
   }
 
   function enterEditMode() {
-    workingFolderInput.value = currentWorkingDir;
+    workingFolderInput.value = currentWorkingDir || defaultWorkingDir;
     folderIcon.classList.add('hidden');
     workingFolderDisplay.classList.add('hidden');
     workingFolderEditBtn.classList.add('hidden');

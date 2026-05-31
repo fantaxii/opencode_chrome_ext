@@ -343,6 +343,11 @@ body {
   min-width: 0;
 }
 
+.working-folder-display.default {
+  opacity: 0.5;
+  font-style: italic;
+}
+
 .working-folder-input {
   flex: 1;
   width: 100%;

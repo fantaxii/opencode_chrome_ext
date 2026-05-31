@@ -233,6 +233,16 @@ async function handleMessage(message) {
       const portAvailable = await findAvailablePort(preferredPort || 4096);
       return { port: portAvailable };
 
+    case 'get-home-dir': {
+      const os = require('os');
+      try {
+        const result = spawnSync('wsl.exe', ['sh', '-c', 'echo $HOME'], { encoding: 'utf8', timeout: 3000 });
+        const wslHome = (result.stdout || '').trim();
+        if (wslHome) return { status: 'success', directory: wslHome };
+      } catch {}
+      return { status: 'success', directory: os.homedir() };
+    }
+
     default:
       return { status: 'error', error: 'Unknown action' };
   }
