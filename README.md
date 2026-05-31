@@ -481,11 +481,17 @@ Chrome Extension (Windows)
         ▼
 Native Host (host.js)
         │
-        ├── 1. which opencode (Windows PATH)  ← 있으면 Windows opencode 사용
+        ├── 1. which opencode (Windows PATH)        ← 있으면 Windows opencode 사용
         │
-        └── 2. wsl.exe which opencode         ← 없으면 WSL opencode 사용
+        └── 2. WSL opencode 탐색 (2가지 전략 순차 시도)
                 │
-                └── wsl.exe opencode serve --port 4096
+                ├── 전략1: wsl.exe bash -c '. ~/.nvm/nvm.sh; which opencode'
+                │          (NVM 명시 로드 — bash startup 경고 없음, 안정적)
+                │
+                └── 전략2: wsl.exe bash -ilc 'which opencode'
+                           (interactive+login — 전략1 실패 시 fallback)
+                │
+                └── wsl.exe <path> serve --port 4096
                         │
                         ▼
               WSL 내부에서 opencode 실행
@@ -498,6 +504,11 @@ Native Host (host.js)
                         ▼
               Chrome Extension 포트 스캔 탐지 성공
 ```
+
+> **NVM 환경 참고**: opencode가 NVM으로 설치된 경우(`~/.nvm/versions/node/.../bin/opencode`),
+> `.bashrc`의 interactive 가드(`case $- in *i*) ;; *) return;; esac`) 때문에
+> 단순 `bash -lc`로는 NVM PATH가 로드되지 않습니다.
+> 전략1(명시적 NVM 소싱)이 이를 해결하며, `.nvm/nvm.sh`가 없어도 `2>/dev/null`로 무음 처리됩니다.
 
 ### 전제 조건
 
@@ -549,14 +560,59 @@ wsl.exe --shutdown
 
 ### 트러블슈팅
 
-#### WSL에서 opencode를 찾지 못함
+#### `opencode를 찾을 수 없음 (Windows/WSL 모두 확인)` 에러
+
+Native Messaging 응답으로 이 에러가 오면 아래 순서로 확인합니다.
+
+**1단계: WSL에서 opencode 설치 확인**
+
+```bash
+# WSL 터미널에서 직접 실행
+which opencode
+opencode --version
+```
+
+- 경로가 나오면 설치는 정상 → 2단계로
+- `command not found`이면 → opencode를 WSL에 설치
+
+```bash
+# NVM으로 설치 (권장)
+npm install -g opencode@latest
+
+# 설치 후 PATH 확인
+which opencode  # 예: /home/user/.nvm/versions/node/v24.x.x/bin/opencode
+```
+
+**2단계: NVM PATH 로딩 확인**
+
+opencode가 NVM 경로에 있다면, `.bashrc`의 interactive 가드로 인해
+Windows Native Host에서 WSL PATH를 읽지 못할 수 있습니다.
+
+```bash
+# clean 환경에서 탐지 시뮬레이션
+env -i HOME=$HOME PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+  bash -c '. "$HOME/.nvm/nvm.sh" 2>/dev/null; which opencode'
+```
+
+경로가 나오면 정상입니다. Native Host(host.js)의 탐지 전략과 동일한 방식입니다.
+
+**3단계: Native Messaging Host 재설치 확인**
+
+host.js가 최신 버전인지 확인하고, 필요 시 install.ps1을 재실행합니다.
+
+```powershell
+# Windows PowerShell에서
+powershell -ExecutionPolicy Bypass -File .\install.ps1
+```
+
+#### WSL에서 opencode를 찾지 못함 (설치 미완료)
 
 ```bash
 # WSL에서 opencode 설치 확인
 wsl opencode --version
 
 # 설치되어 있지 않으면 설치:
-wsl npm install -g @opencode/cli
+wsl npm install -g opencode@latest
 ```
 
 #### WSL2 Mirrored Networking이 작동하지 않음

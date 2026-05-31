@@ -53,22 +53,33 @@ async function findOpenCodePath() {
   }
 
   // 2순위: WSL에서 탐색 (최대 3회 재시도 — WSL 초기화 지연 대비)
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      console.error(`[DEBUG] WSL search attempt ${attempt}/3...`);
-      const result = spawnSync('wsl.exe', ['bash', '-ilc', 'which opencode 2>/dev/null'], {
-        encoding: 'utf8',
-        timeout: 8000
-      });
-      const wslPath = (result.stdout || '').trim();
-      console.error(`[DEBUG] WSL attempt ${attempt} path: "${wslPath}", stderr: "${(result.stderr || '').trim()}"`);
+  // 두 가지 전략을 순서대로 시도:
+  // 전략1: 명시적 NVM 로드 (-i 플래그 없음, bash startup 경고 없음)
+  // 전략2: interactive+login bash (fallback)
+  const wslStrategies = [
+    ['bash', '-c', '. "$HOME/.nvm/nvm.sh" 2>/dev/null; which opencode 2>/dev/null'],
+    ['bash', '-ilc', 'which opencode 2>/dev/null'],
+  ];
 
-      if (wslPath) {
-        console.error('[DEBUG] Found opencode in WSL');
-        return { path: wslPath, isWSL: true };
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    for (let si = 0; si < wslStrategies.length; si++) {
+      try {
+        console.error(`[DEBUG] WSL attempt ${attempt}/3, strategy ${si + 1}/${wslStrategies.length}...`);
+        const result = spawnSync('wsl.exe', wslStrategies[si], {
+          encoding: 'utf8',
+          timeout: 15000
+        });
+        // 여러 줄 출력 시 마지막 비어있지 않은 줄을 경로로 사용
+        const wslPath = (result.stdout || '').split('\n').map(l => l.trim()).filter(Boolean).pop() || '';
+        console.error(`[DEBUG] WSL s${si + 1}/a${attempt}: path="${wslPath}", error="${result.error?.message || 'none'}", status=${result.status}, stderr="${(result.stderr || '').trim().substring(0, 100)}"`);
+
+        if (wslPath) {
+          console.error('[DEBUG] Found opencode in WSL');
+          return { path: wslPath, isWSL: true };
+        }
+      } catch (error) {
+        console.error(`[DEBUG] WSL strategy ${si + 1} attempt ${attempt} failed:`, error.message);
       }
-    } catch (error) {
-      console.error(`[DEBUG] WSL search attempt ${attempt} failed:`, error.message);
     }
 
     if (attempt < 3) {
