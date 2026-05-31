@@ -735,6 +735,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           sendResponse({ success: true, sessionId });
           break;
 
+        case 'cancel-message': {
+          const ctrl = eventSources.get(message.sessionId);
+          if (ctrl) {
+            ctrl.abort();
+            eventSources.delete(message.sessionId);
+          }
+          sendResponse({ success: true });
+          break;
+        }
+
         case 'send-message':
           if (!sessions.has(message.sessionId)) {
             const recoveredPort = await ensureOpenCodeServer();

@@ -289,10 +289,7 @@
     addUserMessage(message);
     messageInput.value = '';
     messageInput.style.height = 'auto';
-    sendBtn.disabled = true;
-
-    isLoading = true;
-    loadingIndicator.classList.remove('hidden');
+    setLoadingState(true);
     addTypingIndicator();
 
     try {
@@ -304,8 +301,7 @@
       console.error('메시지 전송 실패:', error);
       removeTypingIndicator();
       addErrorMessage('메시지 전송에 실패했습니다.');
-      isLoading = false;
-      loadingIndicator.classList.add('hidden');
+      setLoadingState(false);
     }
   }
 
@@ -441,7 +437,32 @@
     }
   });
 
-  sendBtn.addEventListener('click', sendMessage);
+  function setLoadingState(loading) {
+    isLoading = loading;
+    if (loading) {
+      sendBtn.disabled = false;
+      sendBtn.textContent = '■';
+      sendBtn.classList.add('cancel-mode');
+      loadingIndicator.classList.remove('hidden');
+    } else {
+      sendBtn.textContent = '↑';
+      sendBtn.classList.remove('cancel-mode');
+      sendBtn.disabled = !messageInput.value.trim();
+      loadingIndicator.classList.add('hidden');
+    }
+  }
+
+  async function cancelMessage() {
+    if (!isLoading || !currentSessionId) return;
+    await sendMessageToBackground('cancel-message', { sessionId: currentSessionId });
+    removeTypingIndicator();
+    setLoadingState(false);
+  }
+
+  sendBtn.addEventListener('click', () => {
+    if (isLoading) cancelMessage();
+    else sendMessage();
+  });
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === 'message-chunk' && message.sessionId === currentSessionId) {
@@ -461,9 +482,7 @@
       }
       scrollToBottom();
     } else if (message.action === 'message-complete' && message.sessionId === currentSessionId) {
-      isLoading = false;
-      loadingIndicator.classList.add('hidden');
-      sendBtn.disabled = false;
+      setLoadingState(false);
 
       if (message.error) {
         removeTypingIndicator();

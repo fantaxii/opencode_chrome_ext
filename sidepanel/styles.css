@@ -424,6 +424,15 @@ body {
   cursor: not-allowed;
 }
 
+.send-btn.cancel-mode {
+  background-color: var(--error);
+  font-size: 14px;
+}
+
+.send-btn.cancel-mode:hover {
+  background-color: #d32f2f;
+}
+
 .loading-indicator {
   position: fixed;
   bottom: 80px;
