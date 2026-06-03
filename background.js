@@ -862,6 +862,33 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           sendResponse(session || null);
           break;
 
+        case 'get-commands': {
+          const cmdPort = serverState.port;
+          if (!cmdPort) { sendResponse({ commands: [] }); break; }
+          const cmdRes = await fetch(`http://127.0.0.1:${cmdPort}/command`);
+          if (!cmdRes.ok) { sendResponse({ commands: [] }); break; }
+          const cmdData = await cmdRes.json();
+          const commands = Array.isArray(cmdData) ? cmdData : (cmdData.commands || cmdData.items || []);
+          sendResponse({ success: true, commands });
+          break;
+        }
+
+        case 'run-command': {
+          const runPort = serverState.port || await ensureOpenCodeServer();
+          if (!runPort) { sendResponse({ error: 'Server not available' }); break; }
+          if (!sessions.has(message.sessionId)) { sendResponse({ error: 'Invalid session' }); break; }
+          const runRes = await fetch(
+            `http://127.0.0.1:${runPort}/session/${message.sessionId}/command`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: message.commandId })
+            }
+          );
+          sendResponse({ success: runRes.ok, status: runRes.status });
+          break;
+        }
+
         default:
           sendResponse({ error: 'Unknown action' });
       }

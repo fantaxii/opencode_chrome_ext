@@ -21,12 +21,21 @@
   const connectingMessage = document.getElementById('connecting-message');
   const connectingSpinner = document.getElementById('connecting-spinner');
   const retryBtn = document.getElementById('retry-btn');
+  const commandDropdown = document.getElementById('command-dropdown');
 
   let currentSessionId = null;
   let currentTabId = null;
   let isLoading = false;
   let availableModels = [];
   let selectedModel = null;
+  let commandCatalog = [
+    { id: 'local.help',  slash: '/help',  title: 'Help',        description: '사용 가능한 커맨드 목록 표시', hasArg: false },
+    { id: 'local.clear', slash: '/clear', title: 'Clear',       description: '채팅 히스토리 초기화',         hasArg: false },
+    { id: 'local.model', slash: '/model', title: 'Model',       description: '모델 변경 <model-name>',       hasArg: true  },
+    { id: 'local.wd',    slash: '/wd',    title: 'Working Dir', description: '작업 디렉토리 변경 <path>',    hasArg: true  },
+  ];
+  let isDropdownOpen = false;
+  let selectedDropdownIndex = -1;
 
   async function init() {
     updateConnectionStatus('connecting');
@@ -38,6 +47,7 @@
       if (serverState.success && serverState.available) {
         updateConnectionStatus('connected');
         await loadModels();
+        await loadCommandCatalog();
         if (!currentWorkingDir) await loadWorkingDirectory();
       } else {
         updateConnectionStatus('disconnected');
@@ -283,9 +293,209 @@
     }
   }
 
+  async function loadCommandCatalog() {
+    const localCommands = [
+      { id: 'local.help',  slash: '/help',  title: 'Help',        description: '사용 가능한 커맨드 목록 표시',   hasArg: false },
+      { id: 'local.clear', slash: '/clear', title: 'Clear',       description: '채팅 히스토리 초기화',           hasArg: false },
+      { id: 'local.model', slash: '/model', title: 'Model',       description: '모델 변경 <model-name>',         hasArg: true  },
+      { id: 'local.wd',    slash: '/wd',    title: 'Working Dir', description: '작업 디렉토리 변경 <path>',      hasArg: true  },
+    ];
+    try {
+      const res = await sendMessageToBackground('get-commands', {});
+      const serverCmds = (res.commands || []).map(c => ({
+        id: 'server.' + c.name,
+        slash: '/' + c.name,
+        title: c.name,
+        description: c.description || '',
+        hasArg: Array.isArray(c.hints) && c.hints.includes('$ARGUMENTS'),
+        template: c.template || ''
+      }));
+      const merged = [...localCommands];
+      for (const sc of serverCmds) {
+        if (!merged.find(lc => lc.slash === sc.slash)) merged.push(sc);
+      }
+      commandCatalog = merged;
+    } catch {
+      commandCatalog = localCommands;
+    }
+  }
+
+  function showCommandDropdown(query) {
+    const filtered = commandCatalog.filter(c =>
+      c.slash.toLowerCase().startsWith(query.toLowerCase())
+    );
+    if (filtered.length === 0) { hideCommandDropdown(); return; }
+
+    commandDropdown.innerHTML = filtered.map((c, i) => `
+      <div class="command-item" data-index="${i}" data-slash="${escapeHtml(c.slash)}" data-has-arg="${c.hasArg}">
+        <span class="command-name">${escapeHtml(c.slash)}</span>
+        <span class="command-desc">${escapeHtml(c.description)}</span>
+      </div>
+    `).join('');
+
+    commandDropdown.querySelectorAll('.command-item').forEach(item => {
+      item.addEventListener('mousedown', e => { e.preventDefault(); selectCommand(item); });
+    });
+
+    commandDropdown.classList.remove('hidden');
+    isDropdownOpen = true;
+    selectedDropdownIndex = 0;
+    highlightDropdownItem(0);
+  }
+
+  function hideCommandDropdown() {
+    commandDropdown.classList.add('hidden');
+    isDropdownOpen = false;
+    selectedDropdownIndex = -1;
+  }
+
+  function highlightDropdownItem(index) {
+    commandDropdown.querySelectorAll('.command-item').forEach((item, i) => {
+      item.classList.toggle('highlighted', i === index);
+    });
+    selectedDropdownIndex = index;
+  }
+
+  function selectCommand(item) {
+    const slash = item.dataset.slash;
+    const hasArg = item.dataset.hasArg === 'true';
+    hideCommandDropdown();
+    messageInput.focus();
+    if (hasArg) {
+      messageInput.value = slash + ' ';
+      messageInput.dispatchEvent(new Event('input'));
+    } else {
+      messageInput.value = slash;
+      sendMessage();
+    }
+  }
+
+  function findModelByName(query) {
+    const q = query.toLowerCase().trim();
+    for (const provider of availableModels) {
+      const models = Array.isArray(provider.models)
+        ? provider.models
+        : Object.entries(provider.models || {}).map(([id, m]) => ({ id, ...(typeof m === 'object' ? m : {}) }));
+      for (const m of models) {
+        const name = (m.name || '').toLowerCase();
+        const id = (m.id || '').toLowerCase();
+        if (name === q || id === q || id.includes(q) || name.includes(q)) {
+          return { providerID: provider.id, modelID: m.id || m.name };
+        }
+      }
+    }
+    return null;
+  }
+
+  async function executeCommand(input) {
+    const parts = input.trim().split(/\s+/);
+    const slash = parts[0].toLowerCase();
+    const args = parts.slice(1).join(' ');
+
+    addUserMessage(input);
+    messageInput.value = '';
+    messageInput.style.height = 'auto';
+    sendBtn.disabled = true;
+    hideCommandDropdown();
+
+    if (slash === '/help') {
+      const lines = commandCatalog.map(c => `${c.slash.padEnd(12)} ${c.description}`).join('\n');
+      addBotMessage('사용 가능한 커맨드:\n\n' + lines);
+      sendBtn.disabled = false;
+      return;
+    }
+
+    if (slash === '/clear') {
+      messagesContainer.innerHTML = '';
+      try {
+        const result = await sendMessageToBackground('create-session', { title: 'Chrome Extension Chat' });
+        if (result.success) currentSessionId = result.sessionId;
+        else currentSessionId = null;
+      } catch {
+        currentSessionId = null;
+        addErrorMessage('세션 재생성에 실패했습니다.');
+      }
+      addBotMessage('채팅이 초기화되었습니다.');
+      sendBtn.disabled = false;
+      return;
+    }
+
+    if (slash === '/model') {
+      if (!args) { addBotMessage('사용법: /model <model-name>'); sendBtn.disabled = false; return; }
+      const found = findModelByName(args);
+      if (!found) { addBotMessage(`모델을 찾을 수 없습니다: ${args}`); sendBtn.disabled = false; return; }
+      try {
+        await sendMessageToBackground('set-model', { providerId: found.providerID, modelName: found.modelID });
+        addBotMessage(`모델이 변경되었습니다: ${found.modelID}`);
+        for (const option of modelSelect.options) {
+          if (!option.value) continue;
+          try {
+            const info = JSON.parse(option.value);
+            if (info.providerId === found.providerID && info.modelName === found.modelID) {
+              modelSelect.value = option.value;
+              selectedModel = info;
+              break;
+            }
+          } catch {}
+        }
+      } catch (e) {
+        addErrorMessage(`모델 변경 실패: ${e.message}`);
+      } finally {
+        sendBtn.disabled = false;
+      }
+      return;
+    }
+
+    if (slash === '/wd') {
+      if (!args) { addBotMessage('사용법: /wd <path>'); sendBtn.disabled = false; return; }
+      try {
+        const result = await sendMessageToBackground('set-working-directory', { directory: args });
+        updateWorkingFolderDisplay(result.directory || args);
+        addBotMessage(`작업 디렉토리가 변경되었습니다: ${result.directory || args}`);
+      } catch (e) {
+        addErrorMessage(`디렉토리 변경 실패: ${e.message}`);
+      } finally {
+        sendBtn.disabled = false;
+      }
+      return;
+    }
+
+    const cmd = commandCatalog.find(c => c.slash === slash && !c.id.startsWith('local.'));
+    if (cmd) {
+      let promptText = cmd.template || slash;
+      if (args) promptText = promptText.replace(/\$ARGUMENTS/g, args);
+      setLoadingState(true);
+      addTypingIndicator();
+      try {
+        await sendMessageToBackground('send-message', { sessionId: currentSessionId, message: promptText });
+      } catch (error) {
+        removeTypingIndicator();
+        addErrorMessage(`커맨드 실행 실패: ${error.message}`);
+        setLoadingState(false);
+      }
+      return;
+    }
+
+    // 미인식 커맨드 → AI에 그대로 전달
+    setLoadingState(true);
+    addTypingIndicator();
+    try {
+      await sendMessageToBackground('send-message', { sessionId: currentSessionId, message: input });
+    } catch (error) {
+      removeTypingIndicator();
+      addErrorMessage('메시지 전송에 실패했습니다.');
+      setLoadingState(false);
+    }
+  }
+
   async function sendMessage() {
     const message = messageInput.value.trim();
     if (!message || isLoading || !currentSessionId) return;
+
+    if (message.startsWith('/')) {
+      await executeCommand(message);
+      return;
+    }
 
     addUserMessage(message);
     messageInput.value = '';
@@ -429,13 +639,55 @@
     messageInput.style.height = 'auto';
     messageInput.style.height = Math.min(messageInput.scrollHeight, 120) + 'px';
     sendBtn.disabled = !messageInput.value.trim();
+
+    const val = messageInput.value;
+    if (val.startsWith('/') && !val.includes(' ')) {
+      showCommandDropdown(val);
+    } else {
+      hideCommandDropdown();
+    }
   });
 
   messageInput.addEventListener('keydown', (e) => {
+    if (isDropdownOpen) {
+      const items = commandDropdown.querySelectorAll('.command-item');
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        highlightDropdownItem(Math.min(selectedDropdownIndex + 1, items.length - 1));
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        highlightDropdownItem(Math.max(selectedDropdownIndex - 1, 0));
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (selectedDropdownIndex >= 0 && items[selectedDropdownIndex]) {
+          selectCommand(items[selectedDropdownIndex]);
+        }
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        hideCommandDropdown();
+        return;
+      }
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const target = items[selectedDropdownIndex] || items[0];
+        if (target) selectCommand(target);
+        return;
+      }
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
     }
+  });
+
+  messageInput.addEventListener('blur', () => {
+    setTimeout(hideCommandDropdown, 150);
   });
 
   function setLoadingState(loading) {
