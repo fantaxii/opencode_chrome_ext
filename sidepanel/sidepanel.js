@@ -382,6 +382,94 @@
     return null;
   }
 
+  function showModelPicker() {
+    removeTypingIndicator();
+    if (!availableModels.length) {
+      addBotMessage('모델 목록을 불러오지 못했습니다. 서버 연결 상태를 확인하세요.');
+      return;
+    }
+
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message bot-message';
+
+    const avatar = document.createElement('div');
+    avatar.className = 'message-avatar';
+    avatar.textContent = '🤖';
+
+    const content = document.createElement('div');
+    content.className = 'message-content';
+
+    const picker = document.createElement('div');
+    picker.className = 'model-picker';
+
+    const title = document.createElement('p');
+    title.className = 'model-picker-title';
+    title.textContent = '모델을 선택하세요:';
+    picker.appendChild(title);
+
+    availableModels.forEach(provider => {
+      const models = Array.isArray(provider.models)
+        ? provider.models
+        : Object.entries(provider.models || {}).map(([id, m]) => ({ id, ...(typeof m === 'object' ? m : {}) }));
+      if (!models.length) return;
+
+      const group = document.createElement('div');
+      group.className = 'model-picker-group';
+
+      const providerLabel = document.createElement('span');
+      providerLabel.className = 'model-picker-provider';
+      providerLabel.textContent = provider.name || provider.id;
+      group.appendChild(providerLabel);
+
+      models.forEach(model => {
+        const providerId = provider.id;
+        const modelId = model.id || model.name;
+        const modelName = model.name || model.id;
+        const isCurrent = selectedModel &&
+          selectedModel.providerId === providerId &&
+          selectedModel.modelName === modelId;
+
+        const btn = document.createElement('button');
+        btn.className = 'model-picker-btn' + (isCurrent ? ' current' : '');
+        btn.textContent = modelName + (isCurrent ? ' ✓' : '');
+        btn.dataset.provider = providerId;
+        btn.dataset.model = modelId;
+        btn.dataset.name = modelName;
+
+        btn.addEventListener('click', async () => {
+          try {
+            await sendMessageToBackground('set-model', { providerId, modelName: modelId });
+            selectedModel = { providerId, modelName: modelId };
+            for (const option of modelSelect.options) {
+              if (!option.value) continue;
+              try {
+                const info = JSON.parse(option.value);
+                if (info.providerId === providerId && info.modelName === modelId) {
+                  modelSelect.value = option.value;
+                  break;
+                }
+              } catch {}
+            }
+            messageDiv.remove();
+            addBotMessage(`모델이 변경되었습니다: ${modelName}`);
+          } catch (e) {
+            addErrorMessage(`모델 변경 실패: ${e.message}`);
+          }
+        });
+
+        group.appendChild(btn);
+      });
+
+      picker.appendChild(group);
+    });
+
+    content.appendChild(picker);
+    messageDiv.appendChild(avatar);
+    messageDiv.appendChild(content);
+    messagesContainer.appendChild(messageDiv);
+    scrollToBottom();
+  }
+
   async function executeCommand(input) {
     const parts = input.trim().split(/\s+/);
     const slash = parts[0].toLowerCase();
@@ -416,7 +504,7 @@
     }
 
     if (slash === '/model') {
-      if (!args) { addBotMessage('사용법: /model <model-name>'); sendBtn.disabled = false; return; }
+      if (!args) { showModelPicker(); sendBtn.disabled = false; return; }
       const found = findModelByName(args);
       if (!found) { addBotMessage(`모델을 찾을 수 없습니다: ${args}`); sendBtn.disabled = false; return; }
       try {

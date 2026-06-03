@@ -596,6 +596,56 @@ body {
   40% { transform: scale(1); }
 }
 
+.model-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.model-picker-title {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0 0 2px;
+}
+
+.model-picker-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.model-picker-provider {
+  font-size: 10px;
+  color: var(--text-secondary);
+  opacity: 0.6;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  padding: 0 2px;
+}
+
+.model-picker-btn {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 12px;
+  font-family: inherit;
+  padding: 6px 10px;
+  text-align: left;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.model-picker-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.model-picker-btn.current {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .error-message {
   color: var(--error);
   font-size: 13px;
