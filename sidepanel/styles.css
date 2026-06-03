@@ -362,11 +362,61 @@ body {
 
 .selectors-wrapper {
   display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.agent-model-row {
+  display: flex;
   gap: 8px;
 }
 
-.working-folder-wrapper {
+.agent-bar {
   flex: 3;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.agent-bar:hover {
+  border-color: var(--accent);
+}
+
+.agent-dot {
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.agent-name {
+  flex: 1;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.agent-hint {
+  font-size: 10px;
+  color: var(--text-secondary);
+  opacity: 0;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+
+.agent-bar:hover .agent-hint {
+  opacity: 0.6;
+}
+
+.working-folder-wrapper {
   display: flex;
   align-items: center;
   gap: 6px;

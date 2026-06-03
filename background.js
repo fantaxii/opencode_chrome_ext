@@ -873,6 +873,37 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
         }
 
+        case 'get-agents': {
+          const agentPort = serverState.port;
+          if (!agentPort) { sendResponse({ agents: [] }); break; }
+          const agentRes = await fetch(`http://127.0.0.1:${agentPort}/agent`);
+          if (!agentRes.ok) { sendResponse({ agents: [] }); break; }
+          const agentData = await agentRes.json();
+          const agents = Array.isArray(agentData)
+            ? agentData.filter(a => (a.mode === 'primary' || a.mode === 'all') && !a.hidden)
+            : [];
+          sendResponse({ success: true, agents });
+          break;
+        }
+
+        case 'set-agent': {
+          const agentSessionId = message.sessionId;
+          const agentName = message.agentName;
+          const agentSetPort = serverState.port;
+          if (!agentSetPort) { sendResponse({ error: 'Server not available' }); break; }
+          const agentSetRes = await fetch(
+            `http://127.0.0.1:${agentSetPort}/session/${agentSessionId}`,
+            {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ agent: agentName })
+            }
+          );
+          const agentSetData = await agentSetRes.json();
+          sendResponse({ success: agentSetRes.ok, agent: agentSetData.agent });
+          break;
+        }
+
         case 'run-command': {
           const runPort = serverState.port || await ensureOpenCodeServer();
           if (!runPort) { sendResponse({ error: 'Server not available' }); break; }

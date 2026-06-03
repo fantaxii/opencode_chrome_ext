@@ -47,15 +47,22 @@
         <button id="send-btn" class="send-btn" disabled>↑</button>
       </div>
       <div class="selectors-wrapper">
+        <div class="agent-model-row">
+          <div class="agent-bar" id="agent-bar" title="Shift+Tab으로 에이전트 변경">
+            <span class="agent-dot" id="agent-dot">●</span>
+            <span class="agent-name" id="agent-name">에이전트</span>
+            <span class="agent-hint">⇧Tab</span>
+          </div>
+          <select id="model-select" class="model-select">
+            <option value="">모델 선택</option>
+          </select>
+        </div>
         <div class="working-folder-wrapper" id="working-folder-wrapper">
           <span class="folder-icon" id="folder-icon">📁</span>
           <span id="working-folder-display" class="working-folder-display">폴더 없음</span>
           <input id="working-folder-input" class="working-folder-input hidden" type="text" placeholder="/path/to/folder">
           <button id="working-folder-edit-btn" class="working-folder-edit-btn" title="edit">✎</button>
         </div>
-        <select id="model-select" class="model-select">
-          <option value="">모델 선택</option>
-        </select>
       </div>
     </div>
   </div>

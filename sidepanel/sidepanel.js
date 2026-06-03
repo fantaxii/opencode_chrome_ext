@@ -20,6 +20,9 @@
   const connectingSpinner = document.getElementById('connecting-spinner');
   const retryBtn = document.getElementById('retry-btn');
   const commandDropdown = document.getElementById('command-dropdown');
+  const agentBar = document.getElementById('agent-bar');
+  const agentDot = document.getElementById('agent-dot');
+  const agentNameEl = document.getElementById('agent-name');
 
   let currentSessionId = null;
   let currentTabId = null;
@@ -34,6 +37,8 @@
   ];
   let isDropdownOpen = false;
   let selectedDropdownIndex = -1;
+  let availableAgents = [];
+  let currentAgentIndex = -1;
 
   async function init() {
     updateConnectionStatus('connecting');
@@ -46,6 +51,7 @@
         updateConnectionStatus('connected');
         await loadModels();
         await loadCommandCatalog();
+        await loadAgents();
         if (!currentWorkingDir) await loadWorkingDirectory();
       } else {
         updateConnectionStatus('disconnected');
@@ -381,6 +387,46 @@
     }
     return null;
   }
+
+  async function loadAgents() {
+    try {
+      const res = await sendMessageToBackground('get-agents');
+      availableAgents = res.agents || [];
+      if (availableAgents.length > 0) {
+        currentAgentIndex = 0;
+        updateAgentBar();
+      }
+    } catch {}
+  }
+
+  function updateAgentBar() {
+    const agent = availableAgents[currentAgentIndex];
+    if (!agent) {
+      agentDot.style.color = 'var(--text-secondary)';
+      agentNameEl.textContent = '에이전트';
+      return;
+    }
+    const fullName = agent.name.replace(/[​-‍﻿]/g, '').trim();
+    agentDot.style.color = agent.color || 'var(--text-secondary)';
+    agentNameEl.textContent = fullName;
+  }
+
+  async function cycleAgent() {
+    if (!availableAgents.length) return;
+    currentAgentIndex = (currentAgentIndex + 1) % availableAgents.length;
+    updateAgentBar();
+    if (!currentSessionId) return;
+    try {
+      await sendMessageToBackground('set-agent', {
+        sessionId: currentSessionId,
+        agentName: availableAgents[currentAgentIndex].name
+      });
+    } catch (e) {
+      console.error('에이전트 변경 실패:', e);
+    }
+  }
+
+  agentBar.addEventListener('click', () => cycleAgent());
 
   function showModelPicker() {
     removeTypingIndicator();
@@ -731,6 +777,13 @@
     }
   });
 
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab' && e.shiftKey) {
+      e.preventDefault();
+      cycleAgent();
+    }
+  });
+
   messageInput.addEventListener('keydown', (e) => {
     if (isDropdownOpen) {
       const items = commandDropdown.querySelectorAll('.command-item');
@@ -756,7 +809,7 @@
         hideCommandDropdown();
         return;
       }
-      if (e.key === 'Tab') {
+      if (e.key === 'Tab' && !e.shiftKey) {
         e.preventDefault();
         const target = items[selectedDropdownIndex] || items[0];
         if (target) selectCommand(target);
