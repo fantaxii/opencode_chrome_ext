@@ -12,8 +12,6 @@
   let defaultWorkingDir = '';
   const header = document.querySelector('.header');
   const connectionText = document.getElementById('connection-text');
-  const pageTitle = document.getElementById('page-title');
-  const pageUrl = document.getElementById('page-url');
   const loadingIndicator = document.getElementById('loading-indicator');
   const attachBtn = document.getElementById('attach-btn');
   const inputArea = document.getElementById('input-area');
@@ -132,11 +130,6 @@
     loadingIndicator.classList.add('hidden');
     sendBtn.disabled = !messageInput.value.trim();
 
-    if (tab.title) {
-      pageTitle.textContent = tab.title;
-      pageUrl.textContent = tab.url || '';
-    }
-
     try {
       const result = await sendMessageToBackground('get-tab-session', {
         tabId: tab.id,
@@ -188,7 +181,7 @@
   });
 
   function addPageContextMessage(title, url) {
-    const welcome = messagesContainer.querySelector('.welcome-message');
+    const welcome = messagesContainer.querySelector('.welcome-section');
     if (welcome) welcome.remove();
 
     const div = document.createElement('div');
@@ -350,10 +343,12 @@
   }
 
   function highlightDropdownItem(index) {
-    commandDropdown.querySelectorAll('.command-item').forEach((item, i) => {
+    const items = commandDropdown.querySelectorAll('.command-item');
+    items.forEach((item, i) => {
       item.classList.toggle('highlighted', i === index);
     });
     selectedDropdownIndex = index;
+    if (items[index]) items[index].scrollIntoView({ block: 'nearest' });
   }
 
   function selectCommand(item) {

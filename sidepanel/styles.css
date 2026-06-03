@@ -153,53 +153,55 @@ body {
 
 .welcome-section {
   text-align: center;
-  padding: 40px 20px 20px;
+  padding: 48px 24px 24px;
   color: var(--text-secondary);
-}
-
-.opencode-icon {
-  font-size: 48px;
-  margin-bottom: 24px;
-  letter-spacing: 8px;
-  color: var(--accent);
-}
-
-.page-info {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  margin-bottom: 24px;
-  flex-wrap: wrap;
+  gap: 12px;
 }
 
-.page-icon {
-  font-size: 24px;
+.welcome-logo {
+  margin-bottom: 4px;
 }
 
-.page-title {
-  font-size: 16px;
-  font-weight: 600;
+.welcome-title {
+  font-size: 22px;
+  font-weight: 700;
   color: var(--text-primary);
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  margin: 0;
+  letter-spacing: -0.3px;
 }
 
-.page-url {
-  font-size: 11px;
+.welcome-subtitle {
+  font-size: 13px;
   color: var(--text-secondary);
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  margin: 0;
 }
 
-.welcome-text {
+.welcome-desc {
   font-size: 14px;
   color: var(--text-secondary);
   margin: 0;
+  line-height: 1.6;
+}
+
+.welcome-hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+  opacity: 0.7;
+  margin: 4px 0 0;
+}
+
+.welcome-hint kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  font-size: 11px;
+  font-family: inherit;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--accent);
 }
 
 .message {
@@ -307,9 +309,9 @@ body {
 
 .command-item {
   display: flex;
-  align-items: baseline;
-  gap: 10px;
-  padding: 8px 12px;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 12px;
   cursor: pointer;
   transition: background 0.1s;
 }
@@ -323,16 +325,18 @@ body {
   font-weight: 600;
   color: var(--accent);
   white-space: nowrap;
-  min-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 13px;
 }
 
 .command-desc {
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: 11px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  padding-left: 2px;
 }
 
 .attach-btn {
