@@ -24,11 +24,15 @@
   const agentDot = document.getElementById('agent-dot');
   const agentNameEl = document.getElementById('agent-name');
 
+  const mcpBtn = document.getElementById('mcp-btn');
+  const mcpDropdown = document.getElementById('mcp-dropdown');
+
   let currentSessionId = null;
   let currentTabId = null;
   let isLoading = false;
   let availableModels = [];
   let selectedModel = null;
+  let mcpServers = {};
   let commandCatalog = [
     { id: 'local.help',  slash: '/help',  title: 'Help',        description: '사용 가능한 커맨드 목록 표시', hasArg: false },
     { id: 'local.clear', slash: '/clear', title: 'Clear',       description: '채팅 히스토리 초기화',         hasArg: false },
@@ -52,6 +56,7 @@
         await loadModels();
         await loadCommandCatalog();
         await loadAgents();
+        await loadMcpStatus();
         if (!currentWorkingDir) await loadWorkingDirectory();
       } else {
         updateConnectionStatus('disconnected');
@@ -738,6 +743,98 @@
 
   retryBtn.addEventListener('click', () => {
     init();
+  });
+
+  async function loadMcpStatus() {
+    try {
+      const res = await sendMessageToBackground('get-mcp-status');
+      if (res.success) {
+        mcpServers = res.servers;
+        updateMcpBadge();
+      }
+    } catch (e) {}
+  }
+
+  function updateMcpBadge() {
+    const entries = Object.entries(mcpServers);
+    const active = entries.filter(([, s]) => s.status === 'connected').length;
+    const total = entries.length;
+    const el = document.getElementById('mcp-count-text');
+    if (total === 0) {
+      el.textContent = 'MCP';
+      mcpBtn.classList.remove('has-active');
+    } else {
+      el.textContent = `MCP ${active}/${total}`;
+      mcpBtn.classList.toggle('has-active', active > 0);
+    }
+  }
+
+  function renderMcpDropdown() {
+    const entries = Object.entries(mcpServers);
+    if (entries.length === 0) {
+      mcpDropdown.innerHTML = '<div class="mcp-empty">MCP 서버 없음</div>';
+      return;
+    }
+    mcpDropdown.innerHTML = entries.map(([name, info]) => {
+      const isOn = info.status === 'connected' || info.status === 'failed';
+      const dotClass = info.status === 'connected' ? 'mcp-dot-connected'
+                     : info.status === 'failed'    ? 'mcp-dot-failed'
+                     :                               'mcp-dot-disabled';
+      const statusLabel = info.status === 'connected' ? '연결됨'
+                        : info.status === 'failed'    ? `오류`
+                        :                               '비활성';
+      const errorTip = info.error ? ` title="${escapeHtml(info.error)}"` : '';
+      return `<div class="mcp-item">
+        <span class="mcp-dot ${dotClass}">●</span>
+        <div class="mcp-item-info"${errorTip}>
+          <span class="mcp-item-name">${escapeHtml(name)}</span>
+          <span class="mcp-item-status">${statusLabel}</span>
+        </div>
+        <label class="mcp-toggle">
+          <input type="checkbox" data-name="${escapeHtml(name)}" ${isOn ? 'checked' : ''}>
+          <span class="mcp-toggle-slider"></span>
+        </label>
+      </div>`;
+    }).join('');
+
+    mcpDropdown.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      cb.addEventListener('change', async (e) => {
+        const name = e.target.dataset.name;
+        const connect = e.target.checked;
+        e.target.disabled = true;
+        try {
+          const res = await sendMessageToBackground('toggle-mcp', { name, connect });
+          if (res.success) {
+            mcpServers = res.servers;
+            updateMcpBadge();
+            renderMcpDropdown();
+          } else {
+            e.target.checked = !connect;
+            e.target.disabled = false;
+          }
+        } catch {
+          e.target.checked = !connect;
+          e.target.disabled = false;
+        }
+      });
+    });
+  }
+
+  mcpBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (mcpDropdown.classList.contains('hidden')) {
+      renderMcpDropdown();
+      mcpDropdown.classList.remove('hidden');
+    } else {
+      mcpDropdown.classList.add('hidden');
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!mcpDropdown.classList.contains('hidden') &&
+        !mcpBtn.contains(e.target) && !mcpDropdown.contains(e.target)) {
+      mcpDropdown.classList.add('hidden');
+    }
   });
 
   function scrollToBottom() {

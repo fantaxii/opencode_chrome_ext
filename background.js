@@ -920,6 +920,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
         }
 
+        case 'get-mcp-status': {
+          const mcpPort = serverState.port;
+          if (!mcpPort) { sendResponse({ success: false, servers: {} }); break; }
+          const mcpRes = await fetch(`http://127.0.0.1:${mcpPort}/mcp`);
+          if (!mcpRes.ok) { sendResponse({ success: false, servers: {} }); break; }
+          sendResponse({ success: true, servers: await mcpRes.json() });
+          break;
+        }
+
+        case 'toggle-mcp': {
+          const togglePort = serverState.port;
+          if (!togglePort) { sendResponse({ success: false }); break; }
+          const action = message.connect ? 'connect' : 'disconnect';
+          const toggleRes = await fetch(
+            `http://127.0.0.1:${togglePort}/mcp/${encodeURIComponent(message.name)}/${action}`,
+            { method: 'POST' }
+          );
+          const statusRes = await fetch(`http://127.0.0.1:${togglePort}/mcp`);
+          const servers = statusRes.ok ? await statusRes.json() : {};
+          sendResponse({ success: toggleRes.ok, servers });
+          break;
+        }
+
         default:
           sendResponse({ error: 'Unknown action' });
       }

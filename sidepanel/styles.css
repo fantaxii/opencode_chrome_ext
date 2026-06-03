@@ -95,6 +95,141 @@ body {
   font-size: 11px;
 }
 
+.mcp-wrapper {
+  position: relative;
+}
+
+.mcp-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  padding: 2px 7px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.mcp-btn:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.mcp-btn.has-active #mcp-count-text {
+  color: var(--success);
+}
+
+.mcp-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 240px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  z-index: 100;
+  overflow: hidden;
+}
+
+.mcp-empty {
+  padding: 12px 14px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-align: center;
+}
+
+.mcp-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.mcp-item:last-child {
+  border-bottom: none;
+}
+
+.mcp-dot {
+  font-size: 8px;
+  flex-shrink: 0;
+}
+
+.mcp-dot-connected { color: var(--success); }
+.mcp-dot-failed    { color: var(--error); }
+.mcp-dot-disabled  { color: var(--text-secondary); }
+
+.mcp-item-info {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.mcp-item-name {
+  display: block;
+  font-size: 12px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mcp-item-status {
+  display: block;
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.mcp-toggle {
+  position: relative;
+  display: inline-block;
+  width: 32px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.mcp-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.mcp-toggle-slider {
+  position: absolute;
+  inset: 0;
+  background: var(--bg-tertiary);
+  border-radius: 18px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.mcp-toggle-slider::before {
+  content: '';
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  left: 3px;
+  top: 3px;
+  background: var(--text-secondary);
+  border-radius: 50%;
+  transition: transform 0.2s, background 0.2s;
+}
+
+.mcp-toggle input:checked + .mcp-toggle-slider {
+  background: var(--accent);
+}
+
+.mcp-toggle input:checked + .mcp-toggle-slider::before {
+  transform: translateX(14px);
+  background: white;
+}
+
+.mcp-toggle input:disabled + .mcp-toggle-slider {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .model-select {
   flex: 2;
   min-width: 0;
