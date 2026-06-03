@@ -531,8 +531,15 @@ function subscribeToEvents(sessionId, port, onChunk, onComplete) {
               const evt = raw.payload || raw;
               // id 가 SSE id: 필드 없이 JSON 안에 있을 경우 fallback
               if (!currentId && raw.id) currentId = raw.id;
-              // 서버 cwd 를 storage 에 캐시 (기본 폴더 표시용)
-              if (raw.directory) chrome.storage.local.set({ serverCwd: raw.directory }).catch(() => {});
+              // 서버 cwd 를 storage 에 캐시하고 sidepanel 에 즉시 알림 (기본 폴더 표시용)
+              if (raw.directory) {
+                chrome.storage.local.get('serverCwd').then(({ serverCwd }) => {
+                  if (serverCwd !== raw.directory) {
+                    chrome.storage.local.set({ serverCwd: raw.directory }).catch(() => {});
+                    chrome.runtime.sendMessage({ action: 'default-directory-updated', directory: raw.directory }).catch(() => {});
+                  }
+                }).catch(() => {});
+              }
 
 
               if (evt.type === 'server.connected') {

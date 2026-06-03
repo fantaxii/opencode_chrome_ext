@@ -482,6 +482,9 @@
         }
       }
       scrollToBottom();
+    } else if (message.action === 'default-directory-updated' && !currentWorkingDir) {
+      defaultWorkingDir = message.directory;
+      updateWorkingFolderDisplay(message.directory, true);
     } else if (message.action === 'message-complete' && message.sessionId === currentSessionId) {
       setLoadingState(false);
 
