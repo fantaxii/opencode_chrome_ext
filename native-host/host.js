@@ -1,14 +1,59 @@
 const { spawn, execSync, spawnSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 
 let opencodeProcess = null;
 let currentPort = 4096;
-let isWSL = false; // WSL 사용 여부 추적
+let isWSL = false;
 
-function log(message) {
-  process.stderr.write(`[OpenCode-Native-Host] ${message}\n`);
+// ============================================
+// 파일 로거 (로테이션: 500KB × 3파일 = 최대 1.5MB)
+// ============================================
+
+const LOG_DIR = path.join(
+  process.env.LOCALAPPDATA || process.env.APPDATA || os.homedir(),
+  'OpenCodeChrome', 'logs'
+);
+const LOG_FILE = path.join(LOG_DIR, 'native-host.log');
+const MAX_LOG_SIZE = 500 * 1024;
+const MAX_LOG_BACKUPS = 2;
+
+function ensureLogDir() {
+  try {
+    if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
+  } catch {}
 }
+
+function rotateIfNeeded() {
+  try {
+    if (!fs.existsSync(LOG_FILE)) return;
+    if (fs.statSync(LOG_FILE).size < MAX_LOG_SIZE) return;
+    for (let i = MAX_LOG_BACKUPS; i >= 1; i--) {
+      const from = `${LOG_FILE}.${i}`;
+      if (i === MAX_LOG_BACKUPS) {
+        if (fs.existsSync(from)) fs.unlinkSync(from);
+      } else {
+        if (fs.existsSync(from)) fs.renameSync(from, `${LOG_FILE}.${i + 1}`);
+      }
+    }
+    fs.renameSync(LOG_FILE, `${LOG_FILE}.1`);
+  } catch {}
+}
+
+function fileLog(level, message) {
+  try {
+    ensureLogDir();
+    rotateIfNeeded();
+    const line = `${new Date().toISOString()} [${level.padEnd(5)}] ${message}\n`;
+    fs.appendFileSync(LOG_FILE, line, 'utf8');
+  } catch {}
+  process.stderr.write(`[NativeHost][${level}] ${message}\n`);
+}
+
+// ============================================
+// 서버 상태 확인
+// ============================================
 
 async function checkOpenCodeServer(port) {
   try {
@@ -18,10 +63,7 @@ async function checkOpenCodeServer(port) {
         resolve(res.statusCode === 200);
       });
       req.on('error', () => resolve(false));
-      req.setTimeout(2000, () => {
-        req.destroy();
-        resolve(false);
-      });
+      req.setTimeout(2000, () => { req.destroy(); resolve(false); });
     });
   } catch {
     return false;
@@ -31,31 +73,37 @@ async function checkOpenCodeServer(port) {
 async function findAvailablePort(startPort = 4096) {
   for (let port = startPort; port < startPort + 10; port++) {
     const available = await checkOpenCodeServer(port);
-    if (!available) {
-      return port;
-    }
+    if (!available) return port;
   }
   return null;
 }
 
-// Windows PATH 및 WSL에서 opencode 경로를 찾는 함수
-async function findOpenCodePath() {
-  console.error('[DEBUG] findOpenCodePath() called - Starting path detection...');
+// ============================================
+// opencode 경로 탐색 (Windows → WSL fallback)
+// ============================================
 
-  // 1순위: Windows PATH에서 탐색
+async function findOpenCodePath() {
+  const diagnostic = {
+    windowsPath: { checked: true, found: false, error: null },
+    wsl: { checked: false, found: false, strategies: [] }
+  };
+
+  fileLog('DEBUG', 'findOpenCodePath: Starting path detection...');
+
+  // 1순위: Windows PATH
   try {
-    console.error('[DEBUG] Attempting to find opencode in Windows PATH...');
+    fileLog('DEBUG', 'findOpenCodePath: Trying Windows PATH...');
     const windowsPath = require('which').sync('opencode');
-    console.error(`[DEBUG] Found opencode in Windows PATH: ${windowsPath}`);
-    return { path: windowsPath, isWSL: false };
+    diagnostic.windowsPath.found = true;
+    fileLog('INFO', `findOpenCodePath: Found in Windows PATH: ${windowsPath}`);
+    return { path: windowsPath, isWSL: false, diagnostic };
   } catch (error) {
-    console.error('[DEBUG] opencode not found in Windows PATH:', error.message);
+    diagnostic.windowsPath.error = error.message;
+    fileLog('WARN', `findOpenCodePath: Not in Windows PATH - ${error.message}`);
   }
 
-  // 2순위: WSL에서 탐색 (최대 3회 재시도 — WSL 초기화 지연 대비)
-  // 두 가지 전략을 순서대로 시도:
-  // 전략1: 명시적 NVM 로드 (-i 플래그 없음, bash startup 경고 없음)
-  // 전략2: interactive+login bash (fallback)
+  // 2순위: WSL (최대 3회 재시도, 2가지 전략)
+  diagnostic.wsl.checked = true;
   const wslStrategies = [
     ['bash', '-c', '. "$HOME/.nvm/nvm.sh" 2>/dev/null; which opencode 2>/dev/null'],
     ['bash', '-ilc', 'which opencode 2>/dev/null'],
@@ -64,177 +112,164 @@ async function findOpenCodePath() {
   for (let attempt = 1; attempt <= 3; attempt++) {
     for (let si = 0; si < wslStrategies.length; si++) {
       try {
-        console.error(`[DEBUG] WSL attempt ${attempt}/3, strategy ${si + 1}/${wslStrategies.length}...`);
-        const result = spawnSync('wsl.exe', wslStrategies[si], {
-          encoding: 'utf8',
-          timeout: 15000
-        });
-        // 여러 줄 출력 시 마지막 비어있지 않은 줄을 경로로 사용
+        fileLog('DEBUG', `findOpenCodePath: WSL strategy ${si + 1}/${wslStrategies.length}, attempt ${attempt}/3...`);
+        const result = spawnSync('wsl.exe', wslStrategies[si], { encoding: 'utf8', timeout: 15000 });
         const wslPath = (result.stdout || '').split('\n').map(l => l.trim()).filter(Boolean).pop() || '';
-        console.error(`[DEBUG] WSL s${si + 1}/a${attempt}: path="${wslPath}", error="${result.error?.message || 'none'}", status=${result.status}, stderr="${(result.stderr || '').trim().substring(0, 100)}"`);
+        const stderr = (result.stderr || '').trim().substring(0, 200);
+
+        diagnostic.wsl.strategies.push({ id: si + 1, attempt, found: !!wslPath, stderr, exitCode: result.status });
+        fileLog('DEBUG', `findOpenCodePath: WSL s${si + 1}/a${attempt}: path="${wslPath}", exitCode=${result.status}, stderr="${stderr}"`);
 
         if (wslPath) {
-          console.error('[DEBUG] Found opencode in WSL');
-          return { path: wslPath, isWSL: true };
+          diagnostic.wsl.found = true;
+          fileLog('INFO', `findOpenCodePath: Found in WSL: ${wslPath}`);
+          return { path: wslPath, isWSL: true, diagnostic };
         }
       } catch (error) {
-        console.error(`[DEBUG] WSL strategy ${si + 1} attempt ${attempt} failed:`, error.message);
+        diagnostic.wsl.strategies.push({ id: si + 1, attempt, found: false, stderr: error.message, exitCode: null });
+        fileLog('WARN', `findOpenCodePath: WSL s${si + 1}/a${attempt} exception: ${error.message}`);
       }
     }
 
     if (attempt < 3) {
-      console.error(`[DEBUG] Retrying WSL search in 2s...`);
+      fileLog('DEBUG', 'findOpenCodePath: Retrying WSL in 2s...');
       await new Promise(resolve => setTimeout(resolve, 2000));
     }
   }
-  console.error('[DEBUG] opencode not found in WSL after 3 attempts');
 
-  console.error('[DEBUG] opencode not found in Windows or WSL');
-  return null;
+  fileLog('ERROR', 'findOpenCodePath: Not found in Windows PATH or WSL after all attempts');
+  return { path: null, isWSL: false, diagnostic };
 }
+
+// ============================================
+// OpenCode 서버 기동
+// ============================================
 
 async function startOpenCodeServer(preferredPort = 4096) {
   if (opencodeProcess) {
-    log('OpenCode 프로세스가 이미 실행 중');
+    fileLog('INFO', `startOpenCodeServer: Already running on port ${currentPort}`);
     return currentPort;
   }
 
-  log('OpenCode 서버 시작 시도...');
+  fileLog('INFO', 'startOpenCodeServer: Starting...');
 
   try {
     const port = await findAvailablePort(preferredPort);
-    
-    if (!port) {
-      throw new Error('사용 가능한 포트를 찾을 수 없음');
-    }
+    if (!port) throw new Error('사용 가능한 포트를 찾을 수 없음');
 
     currentPort = port;
-    
-    // opencode 경로 탐지 (Windows → WSL fallback)
-    console.error('[DEBUG] startOpenCodeServer: Calling findOpenCodePath()...');
-    const found = await findOpenCodePath();
-    console.error('[DEBUG] startOpenCodeServer: findOpenCodePath() result:', found);
+    fileLog('INFO', `startOpenCodeServer: Using port ${port}`);
 
-    if (!found) {
-      throw new Error('opencode를 찾을 수 없음 (Windows/WSL 모두 확인)');
+    const found = await findOpenCodePath();
+
+    if (!found.path) {
+      const err = new Error('opencode를 찾을 수 없음 (Windows/WSL 모두 확인)');
+      err.diagnostic = found.diagnostic;
+      throw err;
     }
 
-    // WSL 사용 여부 설정
     isWSL = found.isWSL;
-    console.error(`[DEBUG] isWSL flag set to: ${isWSL}`);
 
     if (isWSL) {
-      // WSL 방식으로 실행 - 찾은 전체 경로로 직접 실행 (bash 우회, TTY 문제 없음)
-      console.error(`[DEBUG] Spawning opencode in WSL with full path: ${found.path}`);
-      log(`WSL에서 OpenCode 서버 시작 (포트 ${port})...`);
+      fileLog('INFO', `startOpenCodeServer: Spawning via WSL: wsl.exe ${found.path} serve --port ${port}`);
       opencodeProcess = spawn('wsl.exe', [found.path, 'serve', '--port', port.toString()], {
         stdio: ['pipe', 'pipe', 'pipe']
       });
     } else {
-      // Windows 방식 (기존)
-      console.error('[DEBUG] Spawning opencode in Windows...');
-      log(`Windows에서 OpenCode 서버 시작 (포트 ${port})...`);
+      fileLog('INFO', `startOpenCodeServer: Spawning on Windows: ${found.path} serve --port ${port}`);
       opencodeProcess = spawn(found.path, ['serve', '--port', port.toString()], {
         stdio: ['pipe', 'pipe', 'pipe']
       });
     }
 
     opencodeProcess.stdout.on('data', (data) => {
-      log(data.toString());
+      fileLog('INFO', `[opencode] ${data.toString().trimEnd()}`);
     });
-
     opencodeProcess.stderr.on('data', (data) => {
-      log(data.toString());
+      fileLog('INFO', `[opencode] ${data.toString().trimEnd()}`);
     });
-
-    opencodeProcess.on('exit', (code) => {
-      log(`OpenCode 프로세스 종료: ${code}`);
+    opencodeProcess.on('exit', (code, signal) => {
+      fileLog(code === 0 ? 'INFO' : 'ERROR', `OpenCode process exited: code=${code}, signal=${signal}`);
       opencodeProcess = null;
     });
-
     opencodeProcess.on('error', (error) => {
-      log(`OpenCode 프로세스 오류: ${error.message}`);
+      fileLog('ERROR', `OpenCode process spawn error: ${error.message}`);
       opencodeProcess = null;
     });
 
     let attempts = 0;
     const maxAttempts = 30;
-    
     while (attempts < maxAttempts) {
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
       const available = await checkOpenCodeServer(port);
       if (available) {
-        log(`OpenCode 서버 시작 완료: 포트 ${port}`);
+        fileLog('INFO', `startOpenCodeServer: Server ready on port ${port} after ${attempts + 1}s`);
         return port;
       }
       attempts++;
+      if (attempts % 5 === 0) fileLog('DEBUG', `startOpenCodeServer: Waiting... ${attempts}/${maxAttempts}s`);
     }
 
     throw new Error('서버 시작 시간 초과');
   } catch (error) {
-    log(`서버 시작 실패: ${error.message}`);
+    fileLog('ERROR', `startOpenCodeServer: Failed - ${error.message}`);
     throw error;
   }
 }
 
 function stopOpenCodeServer() {
   if (opencodeProcess) {
-    console.error('[DEBUG] stopOpenCodeServer called. isWSL:', isWSL);
+    fileLog('INFO', `stopOpenCodeServer: Stopping, isWSL=${isWSL}`);
     opencodeProcess.kill();
     opencodeProcess = null;
-    log('OpenCode 서버 종료');
 
-    // WSL인 경우 WSL 내부의 opencode 프로세스 추가 종료
     if (isWSL) {
-      console.error('[DEBUG] Attempting to kill WSL opencode process...');
       try {
-        // WSL 내부의 opencode 프로세스 PID 찾기 및 종료
         execSync('wsl.exe pkill -f "opencode serve"', { encoding: 'utf8' });
-        log('WSL 내부 OpenCode 프로세스 종료');
-        console.error('[DEBUG] WSL opencode process killed successfully');
+        fileLog('INFO', 'stopOpenCodeServer: WSL opencode process killed');
       } catch (error) {
-        // pkill이 프로세스를 찾지 못해도 에러로 처리하지 않음 (이미 종료되었을 수 있음)
-        console.error('[DEBUG] pkill failed (process may already be dead):', error.message);
+        fileLog('DEBUG', `stopOpenCodeServer: pkill (may already be dead): ${error.message}`);
       }
     }
 
-    // 플래그 초기화
     isWSL = false;
-    console.error('[DEBUG] isWSL flag reset to false');
   }
 }
 
+// ============================================
+// 메시지 핸들러
+// ============================================
+
 async function handleMessage(message) {
   const { action, preferredPort } = message;
+  fileLog('INFO', `handleMessage: action=${action}`);
 
   switch (action) {
     case 'start':
       try {
         const port = await startOpenCodeServer(preferredPort || 4096);
+        fileLog('INFO', `handleMessage: start success, port=${port}`);
         return { status: 'success', port };
       } catch (error) {
-        return { status: 'error', error: error.message };
+        fileLog('ERROR', `handleMessage: start failed - ${error.message}`);
+        return { status: 'error', error: error.message, diagnostic: error.diagnostic || null };
       }
 
     case 'stop':
       stopOpenCodeServer();
       return { status: 'success' };
 
-    case 'status':
+    case 'status': {
       const available = await checkOpenCodeServer(currentPort);
-      return {
-        status: 'success',
-        running: available,
-        port: currentPort
-      };
+      return { status: 'success', running: available, port: currentPort };
+    }
 
-    case 'check-port':
+    case 'check-port': {
       const portAvailable = await findAvailablePort(preferredPort || 4096);
       return { port: portAvailable };
+    }
 
     case 'get-home-dir': {
-      const os = require('os');
       try {
         const result = spawnSync('wsl.exe', ['sh', '-c', 'echo $HOME'], { encoding: 'utf8', timeout: 3000 });
         const wslHome = (result.stdout || '').trim();
@@ -243,10 +278,29 @@ async function handleMessage(message) {
       return { status: 'success', directory: os.homedir() };
     }
 
+    case 'read-log': {
+      try {
+        if (!fs.existsSync(LOG_FILE)) {
+          return { status: 'success', content: '(로그 파일 없음)', path: LOG_FILE };
+        }
+        const content = fs.readFileSync(LOG_FILE, 'utf8');
+        const lines = content.split('\n').filter(l => l.trim());
+        const last100 = lines.slice(-100).join('\n');
+        return { status: 'success', content: last100, path: LOG_FILE };
+      } catch (error) {
+        return { status: 'error', error: error.message };
+      }
+    }
+
     default:
+      fileLog('WARN', `handleMessage: Unknown action - ${action}`);
       return { status: 'error', error: 'Unknown action' };
   }
 }
+
+// ============================================
+// Native Messaging 프로토콜 (stdin/stdout)
+// ============================================
 
 function readMessage() {
   return new Promise((resolve, reject) => {
@@ -258,13 +312,11 @@ function readMessage() {
     const onData = (chunk) => {
       let offset = 0;
 
-      // 4바이트 길이 헤더 읽기
       while (offset < chunk.length && headerBytes < 4) {
         headerBuf[headerBytes++] = chunk[offset++];
       }
       if (headerBytes < 4) return;
 
-      // 헤더 완성 후 메시지 버퍼 할당 (1회)
       if (!msgBuf) {
         const length = headerBuf.readUInt32LE(0);
         if (length > 1024 * 1024) {
@@ -274,7 +326,6 @@ function readMessage() {
         msgBuf = Buffer.alloc(length);
       }
 
-      // 메시지 바디 읽기 (헤더와 같은 chunk에 있어도 처리)
       while (offset < chunk.length && msgBytes < msgBuf.length) {
         msgBuf[msgBytes++] = chunk[offset++];
       }
@@ -295,19 +346,16 @@ function readMessage() {
 }
 
 function writeMessage(message) {
-  const jsonString = JSON.stringify(message);
-  const jsonBuffer = Buffer.from(jsonString, 'utf8');
-  
+  const jsonBuffer = Buffer.from(JSON.stringify(message), 'utf8');
   const lengthBuffer = Buffer.alloc(4);
   lengthBuffer.writeUInt32LE(jsonBuffer.length, 0);
-  
-  const stdout = process.stdout;
-  stdout.write(lengthBuffer);
-  stdout.write(jsonBuffer);
+  process.stdout.write(lengthBuffer);
+  process.stdout.write(jsonBuffer);
 }
 
 async function main() {
-  log('Native Messaging Host 시작');
+  fileLog('INFO', `Native Messaging Host started - Node ${process.version}, platform=${process.platform}`);
+  fileLog('INFO', `Log file: ${LOG_FILE}`);
 
   while (true) {
     try {
@@ -315,7 +363,7 @@ async function main() {
       const response = await handleMessage(message);
       writeMessage(response);
     } catch (error) {
-      log(`오류: ${error.message}`);
+      fileLog('ERROR', `main loop error: ${error.message}`);
       writeMessage({ status: 'error', error: error.message });
     }
   }

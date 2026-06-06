@@ -594,6 +594,12 @@
       return;
     }
 
+    if (slash === '/debug') {
+      await showDebugLog();
+      sendBtn.disabled = false;
+      return;
+    }
+
     const cmd = commandCatalog.find(c => c.slash === slash && !c.id.startsWith('local.'));
     if (cmd) {
       let promptText = cmd.template || slash;
@@ -943,6 +949,79 @@
     await sendMessageToBackground('cancel-message', { sessionId: currentSessionId });
     removeTypingIndicator();
     setLoadingState(false);
+  }
+
+  // ============================================
+  // 디버그 로그 (/debug 커맨드)
+  // ============================================
+
+  const debugDialog = document.getElementById('debug-dialog');
+  const debugContent = document.getElementById('debug-content');
+  const debugCopyStatus = document.getElementById('debug-copy-status');
+  const debugCopyBtn = document.getElementById('debug-copy-btn');
+  const debugCloseBtn = document.getElementById('debug-close-btn');
+
+  debugCloseBtn.addEventListener('click', () => debugDialog.classList.add('hidden'));
+
+  debugCopyBtn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(debugContent.textContent);
+      debugCopyStatus.textContent = '✓ 복사됨';
+      setTimeout(() => { debugCopyStatus.textContent = ''; }, 2000);
+    } catch {
+      debugCopyStatus.textContent = '수동으로 복사하세요';
+    }
+  });
+
+  async function showDebugLog() {
+    const loadingDiv = document.createElement('div');
+    loadingDiv.className = 'message bot-message';
+    loadingDiv.innerHTML = `<div class="message-avatar">🔍</div><div class="message-content">디버그 로그 수집 중...</div>`;
+    messagesContainer.appendChild(loadingDiv);
+    scrollToBottom();
+
+    let result;
+    try {
+      result = await sendMessageToBackground('get-debug-logs');
+    } catch (e) {
+      loadingDiv.remove();
+      addErrorMessage('디버그 로그 수집 실패: ' + e.message);
+      return;
+    }
+    loadingDiv.remove();
+
+    const lines = [];
+    lines.push('========== OpenCode Debug Log ==========');
+    lines.push(`Generated : ${new Date().toISOString()}`);
+    lines.push('=========================================');
+    lines.push('');
+    lines.push(`--- Service Worker Logs (${(result.swLogs || []).length}건) ---`);
+    if (!result.swLogs || result.swLogs.length === 0) {
+      lines.push('(SW 로그 없음)');
+    } else {
+      result.swLogs.forEach(e => lines.push(`${e.ts} [${(e.level || '').padEnd(5)}] ${e.msg}`));
+    }
+    lines.push('');
+    lines.push('--- Native Host File Log ---');
+    if (result.fileLog?.content) {
+      if (result.fileLog.path) lines.push(`Path: ${result.fileLog.path}`);
+      lines.push(result.fileLog.content);
+    } else {
+      lines.push('⚠ 파일 로그 없음 (Native Messaging 연결 실패 또는 로그 파일 미생성)');
+      lines.push('  위 SW 로그의 Chrome 에러 메시지로 원인을 확인하세요.');
+    }
+
+    const fullText = lines.join('\n');
+    debugContent.textContent = fullText;
+    debugCopyStatus.textContent = '';
+    debugDialog.classList.remove('hidden');
+
+    try {
+      await navigator.clipboard.writeText(fullText);
+      debugCopyStatus.textContent = '✓ 클립보드에 자동 복사됨';
+    } catch {
+      debugCopyStatus.textContent = '복사 버튼을 눌러 수동으로 복사하세요';
+    }
   }
 
   sendBtn.addEventListener('click', () => {

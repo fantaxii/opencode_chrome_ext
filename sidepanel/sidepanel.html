@@ -83,6 +83,18 @@
     <button id="retry-btn" class="retry-btn hidden">재연결</button>
   </div>
 
+  <div id="debug-dialog" class="debug-dialog hidden">
+    <div class="debug-dialog-header">
+      <span class="debug-dialog-title">디버그 로그</span>
+      <button id="debug-close-btn" class="debug-close-btn">×</button>
+    </div>
+    <pre id="debug-content" class="debug-content"></pre>
+    <div class="debug-dialog-footer">
+      <span id="debug-copy-status" class="debug-copy-status"></span>
+      <button id="debug-copy-btn" class="debug-copy-btn">복사</button>
+    </div>
+  </div>
+
   <script src="sidepanel.js"></script>
 </body>
 </html>

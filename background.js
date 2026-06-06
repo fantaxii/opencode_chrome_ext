@@ -19,6 +19,26 @@ const SERVER_START_TIMEOUT = 30000; // 30초
 const SSE_RECONNECT_DELAY = 2000;
 
 // ============================================
+// 디버그 로거 (chrome.storage.local 원형버퍼)
+// ============================================
+
+const DEBUG_LOG_KEY = 'debugLogs';
+const MAX_DEBUG_ENTRIES = 200;
+
+function debugLog(level, message) {
+  const entry = { ts: new Date().toISOString(), level, msg: String(message) };
+  (async () => {
+    try {
+      const data = await chrome.storage.local.get(DEBUG_LOG_KEY);
+      const logs = data[DEBUG_LOG_KEY] || [];
+      logs.push(entry);
+      if (logs.length > MAX_DEBUG_ENTRIES) logs.splice(0, logs.length - MAX_DEBUG_ENTRIES);
+      await chrome.storage.local.set({ [DEBUG_LOG_KEY]: logs });
+    } catch {}
+  })();
+}
+
+// ============================================
 // 상태 관리
 // ============================================
 
@@ -40,6 +60,8 @@ let selectedModel = null; // { providerID, modelID }
 chrome.storage.local.get('selectedModel').then(({ selectedModel: saved }) => {
   if (saved) selectedModel = saved;
 }).catch(() => {});
+
+debugLog('INFO', `Service Worker started - ${new Date().toISOString()}`);
 
 // 탭 닫힐 때 세션 및 활성 탭 정리
 chrome.tabs.onRemoved.addListener((tabId) => {
@@ -99,6 +121,7 @@ async function findAvailablePort() {
 async function startServerWithNativeMessaging(preferredPort = DEFAULT_PORT) {
   const MAX_RETRIES = 3;
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    debugLog('INFO', `NativeMsg: attempt ${attempt}/${MAX_RETRIES}, preferredPort=${preferredPort}`);
     console.log(`[startServerWithNativeMessaging] 시도 ${attempt}/${MAX_RETRIES} - preferredPort=${preferredPort}`);
     try {
       const response = await chrome.runtime.sendNativeMessage(NATIVE_HOST_NAME, {
@@ -108,20 +131,28 @@ async function startServerWithNativeMessaging(preferredPort = DEFAULT_PORT) {
 
       console.log(`[startServerWithNativeMessaging] Native Messaging 응답:`, response);
       if (response.status === 'success') {
+        debugLog('INFO', `NativeMsg: success, port=${response.port}`);
         console.log(`[startServerWithNativeMessaging] 성공 - port=${response.port}`);
         return response.port;
       }
+      // host.js가 반환한 에러 + 진단 정보 기록
+      const diagStr = response.diagnostic ? ` | diagnostic: ${JSON.stringify(response.diagnostic)}` : '';
+      debugLog('ERROR', `NativeMsg: host error - ${response.error}${diagStr}`);
       console.error(`[startServerWithNativeMessaging] 실패 - status=${response.status}, error=${response.error}`);
     } catch (error) {
+      // Chrome 레벨 Native Messaging 에러 (연결 자체 실패)
+      debugLog('ERROR', `NativeMsg: Chrome error attempt ${attempt}/${MAX_RETRIES} - ${error.message}`);
       console.error(`[startServerWithNativeMessaging] 시도 ${attempt} 실패:`, error);
     }
 
     if (attempt < MAX_RETRIES) {
       const delay = attempt * 2000;
+      debugLog('INFO', `NativeMsg: retrying in ${delay}ms...`);
       console.log(`[startServerWithNativeMessaging] ${delay}ms 후 재시도...`);
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
+  debugLog('ERROR', `NativeMsg: all ${MAX_RETRIES} attempts failed`);
   console.error(`[startServerWithNativeMessaging] ${MAX_RETRIES}회 시도 모두 실패`);
   return null;
 }
@@ -168,9 +199,11 @@ async function ensureOpenCodeServer() {
       serverState.available = true;
       const health = await checkServerHealth(existingPort);
       serverState.version = health.version;
+      debugLog('INFO', `Server: existing server found on port ${existingPort}, version=${health.version}`);
       console.log(`[ensureOpenCodeServer] 기존 OpenCode 서버 발견: 포트 ${existingPort}, version=${health.version}`);
       port = existingPort;
     } else {
+      debugLog('INFO', 'Server: no running server, requesting start via NativeMsg...');
       console.log(`[ensureOpenCodeServer] OpenCode 서버 없음, Native Messaging으로 시작 시도...`);
       const startedPort = await startServerWithNativeMessaging();
       console.log(`[ensureOpenCodeServer] Native Messaging 결과: startedPort=${startedPort}`);
@@ -314,6 +347,7 @@ async function createSession(title = 'New Chat') {
     console.log(`세션 생성 완료: ${sessionId}`);
     return sessionId;
   } catch (error) {
+    debugLog('ERROR', `Session create failed - ${error.message}`);
     console.error('세션 생성 오류:', error);
     throw error;
   }
@@ -438,6 +472,7 @@ async function sendMessage(sessionId, message, tabInfo, onChunk, onComplete) {
       }
     );
     if (promptResponse.status !== 204 && promptResponse.status !== 202 && !promptResponse.ok) {
+      debugLog('ERROR', `REST /prompt failed - status=${promptResponse.status}, sessionId=${sessionId}`);
       throw new Error(`메시지 전송 실패: ${promptResponse.status}`);
     }
 
@@ -492,6 +527,7 @@ function subscribeToEvents(sessionId, port, onChunk, onComplete) {
         );
 
         if (!response.ok) {
+          debugLog('ERROR', `SSE connect failed - status=${response.status}, sessionId=${sessionId}`);
           resolveOnce();
           clearTimeout(timeoutId);
           onComplete('', `SSE 연결 실패: ${response.status}`);
@@ -617,6 +653,7 @@ function subscribeToEvents(sessionId, port, onChunk, onComplete) {
         }
       } catch (error) {
         if (error.name === 'AbortError') return;
+        debugLog('ERROR', `SSE error - ${error.message}, sessionId=${sessionId}`);
         console.error('SSE 오류:', error);
         resolveOnce();
         if (!completed && !controller.signal.aborted) {
@@ -663,7 +700,9 @@ async function getAvailableModels() {
       const data = await response.json();
       return data.providers || [];
     }
+    debugLog('WARN', `REST /config/providers failed - status=${response.status}`);
   } catch (error) {
+    debugLog('WARN', `REST /config/providers error - ${error.message}`);
     console.error('모델 목록 가져오기 실패:', error);
   }
   return [];
@@ -940,6 +979,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           const statusRes = await fetch(`http://127.0.0.1:${togglePort}/mcp`);
           const servers = statusRes.ok ? await statusRes.json() : {};
           sendResponse({ success: toggleRes.ok, servers });
+          break;
+        }
+
+        case 'get-debug-logs': {
+          const data = await chrome.storage.local.get(DEBUG_LOG_KEY);
+          const swLogs = data[DEBUG_LOG_KEY] || [];
+          let fileLog = { content: null, path: null };
+          try {
+            const res = await chrome.runtime.sendNativeMessage(NATIVE_HOST_NAME, { action: 'read-log' });
+            if (res?.status === 'success') {
+              fileLog.content = res.content;
+              fileLog.path = res.path;
+            }
+          } catch {}
+          sendResponse({ success: true, swLogs, fileLog });
           break;
         }
 
