@@ -21,5 +21,6 @@
     "archiver": "^7.0.0",
     "pngjs": "^7.0.0",
     "release-it": "^20.0.1"
-  }
+  },
+  "packageManager": "yarn@4.16.0"
 }
