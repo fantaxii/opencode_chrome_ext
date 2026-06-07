@@ -52,6 +52,8 @@ let serverState = {
 let sessions = new Map();
 let tabSessions = new Map(); // tabId → sessionId
 let activeTabs = new Set();  // 사용자가 명시적으로 extension을 연 tabId 목록
+let tabLastShownInfo = new Map(); // tabId → { title, url } - 패널에 마지막으로 표시된 페이지 정보
+let currentActiveTabId = null;     // 현재 사이드패널이 보여주고 있는 탭
 let currentSessionId = null;
 let eventSources = new Map();
 let selectedModel = null; // { providerID, modelID }
@@ -66,11 +68,51 @@ debugLog('INFO', `Service Worker started - ${new Date().toISOString()}`);
 // 탭 닫힐 때 세션 및 활성 탭 정리
 chrome.tabs.onRemoved.addListener((tabId) => {
   activeTabs.delete(tabId);
+  tabLastShownInfo.delete(tabId);
   const sessionId = tabSessions.get(tabId);
   if (sessionId) {
     deleteSession(sessionId).catch(() => {});
     tabSessions.delete(tabId);
   }
+});
+
+// ============================================
+// 페이지 변경 감지 (사이드패널이 열린 탭에서 URL/title 변경 시 안내)
+// ============================================
+
+/**
+ * 탭의 현재 title/url을 마지막으로 표시했던 값과 비교해 변경되었으면
+ * 사이드패널에 'page-changed'를 알린다. (탭이 활성 상태일 때만 즉시 알림)
+ * 최초 관찰 시에는 알림 없이 기준값만 저장한다.
+ */
+function notifyPageChangeIfNeeded(tabId, title, url) {
+  const last = tabLastShownInfo.get(tabId);
+  if (last && last.title === title && last.url === url) return;
+
+  tabLastShownInfo.set(tabId, { title, url });
+
+  if (last) {
+    chrome.runtime.sendMessage({ action: 'page-changed', tabId, title, url }).catch(() => {});
+  }
+}
+
+// 일반 페이지 이동 (전체 문서 로드 완료)
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.status !== 'complete') return;
+  if (!activeTabs.has(tabId) || tabId !== currentActiveTabId) return;
+  notifyPageChangeIfNeeded(tabId, tab.title || '', tab.url || '');
+});
+
+// SPA 라우팅 (history.pushState/replaceState 기반 URL 변경)
+chrome.webNavigation.onHistoryStateUpdated.addListener((details) => {
+  if (details.frameId !== 0) return; // 최상위 프레임만
+  if (!activeTabs.has(details.tabId) || details.tabId !== currentActiveTabId) return;
+  // SPA에서는 title이 URL 변경 직후 비동기로 갱신되는 경우가 많아 약간 지연 후 조회
+  setTimeout(() => {
+    chrome.tabs.get(details.tabId).then((tab) => {
+      if (tab) notifyPageChangeIfNeeded(details.tabId, tab.title || '', tab.url || details.url || '');
+    }).catch(() => {});
+  }, 300);
 });
 
 // ============================================
@@ -1042,6 +1084,8 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     console.error('사이드패널 열기 실패:', e.message);
   });
   activeTabs.add(tab.id);
+  currentActiveTabId = tab.id;
+  tabLastShownInfo.set(tab.id, { title: tab.title || '', url: tab.url || '' });
 
   // 비동기 작업은 패널 열기 이후에
   chrome.storage.local.set({ pendingContextText: { tabId: tab.id, text: selectionText } })
@@ -1080,11 +1124,22 @@ chrome.action.onClicked.addListener((tab) => {
     console.error('사이드패널 열기 실패:', e.message);
   });
   activeTabs.add(tab.id);
+  currentActiveTabId = tab.id;
+  tabLastShownInfo.set(tab.id, { title: tab.title || '', url: tab.url || '' });
   chrome.runtime.sendMessage({ action: 'reinit-for-tab', tabId: tab.id }).catch(() => {});
 });
 
 // 탭 전환 시 — 활성 탭이면 Panel 유지, 아니면 닫기
 chrome.tabs.onActivated.addListener(({ tabId }) => {
+  currentActiveTabId = tabId;
+
+  if (activeTabs.has(tabId)) {
+    // 비활성 상태에서 페이지가 바뀌었을 수 있으니 복귀 시점에 비교
+    chrome.tabs.get(tabId).then((tab) => {
+      if (tab) notifyPageChangeIfNeeded(tabId, tab.title || '', tab.url || '');
+    }).catch(() => {});
+  }
+
   if (!chrome.sidePanel) return;
   if (activeTabs.has(tabId)) {
     chrome.sidePanel.setOptions({ tabId, path: 'sidepanel/sidepanel.html', enabled: true }).catch(() => {});

@@ -15,6 +15,7 @@
     "sidePanel",
     "activeTab",
     "tabs",
+    "webNavigation",
     "nativeMessaging",
     "storage",
     "scripting",

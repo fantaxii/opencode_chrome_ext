@@ -188,6 +188,9 @@
         if (chrome.runtime.lastError || !tab) return;
         reinitForTab(tab);
       });
+    } else if (message.action === 'page-changed') {
+      if (message.tabId !== currentTabId) return; // 현재 보고 있는 탭이 아니면 무시
+      addPageChangedMessage(message.title, message.url);
     }
   });
 
@@ -206,6 +209,22 @@
       </div>
     `;
     messagesContainer.insertBefore(div, messagesContainer.firstChild);
+    scrollToBottom();
+  }
+
+  function addPageChangedMessage(title, url) {
+    const div = document.createElement('div');
+    div.className = 'message bot-message';
+    div.innerHTML = `
+      <div class="message-avatar">🌐</div>
+      <div class="message-content">
+        페이지가 변경된 것을 확인했어요.<br>
+        <strong>${escapeHtml(title)}</strong><br>
+        <small style="opacity:0.6;word-break:break-all">${escapeHtml(url)}</small><br><br>
+        이 세션은 이전 페이지에서 이어지는 대화입니다.
+      </div>
+    `;
+    messagesContainer.appendChild(div);
     scrollToBottom();
   }
 
