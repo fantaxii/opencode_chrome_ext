@@ -408,6 +408,10 @@ body {
 
 .input-area.disabled {
   opacity: 0.5;
+}
+
+.input-area.disabled #model-select,
+.input-area.disabled #attach-btn {
   pointer-events: none;
 }
 

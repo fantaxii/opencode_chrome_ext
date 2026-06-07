@@ -594,12 +594,6 @@
       return;
     }
 
-    if (slash === '/debug') {
-      await showDebugLog();
-      sendBtn.disabled = false;
-      return;
-    }
-
     const cmd = commandCatalog.find(c => c.slash === slash && !c.id.startsWith('local.'));
     if (cmd) {
       let promptText = cmd.template || slash;
@@ -630,12 +624,25 @@
 
   async function sendMessage() {
     const message = messageInput.value.trim();
-    if (!message || isLoading || !currentSessionId) return;
+    if (!message || isLoading) return;
 
     if (message.startsWith('/')) {
+      if (message.trim().toLowerCase() === '/debug') {
+        addUserMessage(message);
+        messageInput.value = '';
+        messageInput.style.height = 'auto';
+        sendBtn.disabled = true;
+        hideCommandDropdown();
+        await showDebugLog();
+        sendBtn.disabled = false;
+        return;
+      }
+      if (!currentSessionId) return;
       await executeCommand(message);
       return;
     }
+
+    if (!currentSessionId) return;
 
     addUserMessage(message);
     messageInput.value = '';

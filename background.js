@@ -183,8 +183,9 @@ async function waitForServer(timeout = SERVER_START_TIMEOUT) {
  */
 async function ensureOpenCodeServer() {
   if (serverState.checking) {
-    console.log(`[ensureOpenCodeServer] 이미 checking 중입니다. 기존 포트 ${serverState.port} 반환`);
-    return serverState.port;
+    const knownPort = serverState.available ? serverState.port : null;
+    console.log(`[ensureOpenCodeServer] 이미 checking 중입니다. 기존 포트 ${knownPort} 반환`);
+    return knownPort;
   }
 
   serverState.checking = true;
