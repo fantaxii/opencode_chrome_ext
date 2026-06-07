@@ -63,6 +63,21 @@ chrome.storage.local.get('selectedModel').then(({ selectedModel: saved }) => {
   if (saved) selectedModel = saved;
 }).catch(() => {});
 
+// SW 재시작 시 탭/세션 상태를 storage.session에서 복원
+function persistState() {
+  chrome.storage.session.set({
+    tabSessions: [...tabSessions],
+    activeTabs: [...activeTabs],
+    tabLastShownInfo: [...tabLastShownInfo]
+  }).catch(() => {});
+}
+
+chrome.storage.session.get(['tabSessions', 'activeTabs', 'tabLastShownInfo']).then((data) => {
+  if (data.tabSessions) tabSessions = new Map(data.tabSessions);
+  if (data.activeTabs) activeTabs = new Set(data.activeTabs);
+  if (data.tabLastShownInfo) tabLastShownInfo = new Map(data.tabLastShownInfo);
+}).catch(() => {});
+
 debugLog('INFO', `Service Worker started - ${new Date().toISOString()}`);
 
 // 탭 닫힐 때 세션 및 활성 탭 정리
@@ -74,6 +89,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
     deleteSession(sessionId).catch(() => {});
     tabSessions.delete(tabId);
   }
+  persistState();
 });
 
 // ============================================
@@ -90,6 +106,7 @@ function notifyPageChangeIfNeeded(tabId, title, url) {
   if (last && last.title === title && last.url === url) return;
 
   tabLastShownInfo.set(tabId, { title, url });
+  persistState();
 
   if (last) {
     chrome.runtime.sendMessage({ action: 'page-changed', tabId, title, url }).catch(() => {});
@@ -901,7 +918,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             sendResponse({ success: true, sessionId: existingId, isNew: false });
           } else {
             const newId = await createSession(message.title || 'New Chat');
-            if (tabId) tabSessions.set(tabId, newId);
+            if (tabId) { tabSessions.set(tabId, newId); persistState(); }
             currentSessionId = newId;
             sendResponse({ success: true, sessionId: newId, isNew: true });
           }
@@ -1098,6 +1115,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   activeTabs.add(tab.id);
   currentActiveTabId = tab.id;
   tabLastShownInfo.set(tab.id, { title: tab.title || '', url: tab.url || '' });
+  persistState();
 
   // 비동기 작업은 패널 열기 이후에
   chrome.storage.local.set({ pendingContextText: { tabId: tab.id, text: selectionText } })
@@ -1138,6 +1156,7 @@ chrome.action.onClicked.addListener((tab) => {
   activeTabs.add(tab.id);
   currentActiveTabId = tab.id;
   tabLastShownInfo.set(tab.id, { title: tab.title || '', url: tab.url || '' });
+  persistState();
   chrome.runtime.sendMessage({ action: 'reinit-for-tab', tabId: tab.id }).catch(() => {});
 });
 
