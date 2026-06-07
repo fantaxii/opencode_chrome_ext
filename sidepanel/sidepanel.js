@@ -702,13 +702,18 @@
 
   function addBotMessage(content) {
     removeTypingIndicator();
-    
+
     const messageDiv = document.createElement('div');
     messageDiv.className = 'message bot-message';
-    messageDiv.innerHTML = `
-      <div class="message-avatar">🤖</div>
-      <div class="message-content">${escapeHtml(content)}</div>
-    `;
+    const avatar = document.createElement('div');
+    avatar.className = 'message-avatar';
+    avatar.textContent = '🤖';
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'message-content markdown-body';
+    contentDiv.dataset.raw = content;
+    contentDiv.innerHTML = typeof marked !== 'undefined' ? marked.parse(content) : escapeHtml(content);
+    messageDiv.appendChild(avatar);
+    messageDiv.appendChild(contentDiv);
     messagesContainer.appendChild(messageDiv);
     scrollToBottom();
   }
@@ -1065,15 +1070,21 @@
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === 'message-chunk' && message.sessionId === currentSessionId) {
       const lastMessage = messagesContainer.querySelector('.bot-message:last-child');
-      
+
+      function appendChunkToContent(contentDiv) {
+        contentDiv.dataset.raw = (contentDiv.dataset.raw || '') + message.chunk;
+        contentDiv.className = 'message-content markdown-body';
+        contentDiv.innerHTML = typeof marked !== 'undefined'
+          ? marked.parse(contentDiv.dataset.raw)
+          : escapeHtml(contentDiv.dataset.raw);
+      }
+
       if (lastMessage && !lastMessage.classList.contains('typing-indicator')) {
-        const contentDiv = lastMessage.querySelector('.message-content');
-        contentDiv.textContent += message.chunk;
+        appendChunkToContent(lastMessage.querySelector('.message-content'));
       } else {
         const typingIndicator = document.getElementById('typing-indicator');
         if (typingIndicator) {
-          const contentDiv = typingIndicator.querySelector('.message-content');
-          contentDiv.textContent += message.chunk;
+          appendChunkToContent(typingIndicator.querySelector('.message-content'));
         } else {
           addBotMessage(message.chunk);
         }
@@ -1092,13 +1103,17 @@
         const typingIndicator = document.getElementById('typing-indicator');
         if (typingIndicator) {
           const content = typingIndicator.querySelector('.message-content');
-          if (content && content.textContent.trim()) {
+          if (content && content.dataset.raw) {
             // 스트리밍 청크가 쌓인 경우 → 영구 메시지로 변환
             typingIndicator.classList.remove('typing-indicator');
             typingIndicator.removeAttribute('id');
           } else if (message.content && message.content.trim()) {
             // 청크를 못 받은 경우 → 최종 내용으로 표시
-            content.textContent = message.content.trim();
+            content.className = 'message-content markdown-body';
+            content.dataset.raw = message.content.trim();
+            content.innerHTML = typeof marked !== 'undefined'
+              ? marked.parse(message.content.trim())
+              : escapeHtml(message.content.trim());
             typingIndicator.classList.remove('typing-indicator');
             typingIndicator.removeAttribute('id');
           } else {

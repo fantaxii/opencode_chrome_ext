@@ -546,14 +546,19 @@ function subscribeToEvents(sessionId, port, onChunk, onComplete) {
     let assistantMessageId = null;
     let textPartIds = new Set();
 
-    const timeoutId = setTimeout(() => {
-      if (!completed) {
-        controller.abort();
-        eventSources.delete(sessionId);
-        debugLog('ERROR', `SSE timeout - sessionId=${sessionId}, assistantMessageId=${assistantMessageId || 'none'}, bufferLength=${buffer.length}`);
-        onComplete(buffer || '', '응답 시간 초과');
-      }
-    }, 60000);
+    let timeoutId = null;
+    function resetTimeout() {
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        if (!completed) {
+          controller.abort();
+          eventSources.delete(sessionId);
+          debugLog('ERROR', `SSE timeout - sessionId=${sessionId}, assistantMessageId=${assistantMessageId || 'none'}, bufferLength=${buffer.length}`);
+          onComplete(buffer || '', '응답 시간 초과');
+        }
+      }, 90000);
+    }
+    resetTimeout();
 
     function resolveOnce() {
       if (!resolved) { resolved = true; resolveConnected(); }
@@ -663,6 +668,7 @@ function subscribeToEvents(sessionId, port, onChunk, onComplete) {
                   if (textPartIds.has(props?.partID) && props?.delta) {
                     buffer += props.delta;
                     onChunk(props.delta);
+                    resetTimeout();
                   }
                   break;
                 }
