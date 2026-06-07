@@ -518,6 +518,7 @@ async function sendMessage(sessionId, message, tabInfo, onChunk, onComplete) {
       debugLog('ERROR', `REST /prompt failed - status=${promptResponse.status}, sessionId=${sessionId}`);
       throw new Error(`메시지 전송 실패: ${promptResponse.status}`);
     }
+    debugLog('INFO', `Prompt sent - sessionId=${sessionId}, status=${promptResponse.status}, model=${selectedModel ? `${selectedModel.providerID}/${selectedModel.modelID}` : 'default'}`);
 
     subscribeToEvents(sessionId, port, onChunk, onComplete);
   } catch (error) {
@@ -549,6 +550,7 @@ function subscribeToEvents(sessionId, port, onChunk, onComplete) {
       if (!completed) {
         controller.abort();
         eventSources.delete(sessionId);
+        debugLog('ERROR', `SSE timeout - sessionId=${sessionId}, assistantMessageId=${assistantMessageId || 'none'}, bufferLength=${buffer.length}`);
         onComplete(buffer || '', '응답 시간 초과');
       }
     }, 60000);
@@ -622,6 +624,7 @@ function subscribeToEvents(sessionId, port, onChunk, onComplete) {
 
 
               if (evt.type === 'server.connected') {
+                debugLog('INFO', `SSE connected - sessionId=${sessionId}`);
                 resolveOnce();
                 continue;
               }
@@ -637,6 +640,7 @@ function subscribeToEvents(sessionId, port, onChunk, onComplete) {
                   const info = evt.properties?.info;
                   if (info?.role === 'assistant' && info?.sessionID === sessionId) {
                     assistantMessageId = info.id;
+                    debugLog('INFO', `Assistant message started - sessionId=${sessionId}, messageId=${info.id}, model=${info.providerID || '?'}/${info.modelID || '?'}`);
 
                     // 현재 선택된 모델 정보 감지 및 저장
                     if (info.modelID && info.providerID) {
@@ -667,6 +671,7 @@ function subscribeToEvents(sessionId, port, onChunk, onComplete) {
                   clearTimeout(timeoutId);
                   controller.abort();
                   eventSources.delete(sessionId);
+                  debugLog('INFO', `Session idle - sessionId=${sessionId}, assistantMessageId=${assistantMessageId || 'none'}, textParts=${textPartIds.size}, bufferLength=${buffer.length}`);
                   onComplete(buffer);
                   return;
                 }
@@ -679,6 +684,7 @@ function subscribeToEvents(sessionId, port, onChunk, onComplete) {
                     || evt.properties?.error?.message
                     || evt.properties?.error?.name
                     || '오류가 발생했습니다';
+                  debugLog('ERROR', `Session error - sessionId=${sessionId}, error=${errMsg}`);
                   onComplete(null, errMsg);
                   return;
                 }
