@@ -6,6 +6,34 @@ param(
 
 $ErrorActionPreference = "Continue"
 
+# Chrome이 Native Messaging Host를 띄울 때 쓰는 프로세스 환경에는
+# 사용자의 PATH가 그대로 반영되지 않는 경우가 많다 (Node 설치 후 PATH가
+# 갱신돼도 이미 떠 있는 explorer/Chrome 세션은 못 봄). 그래서 host.bat에
+# "node"를 그대로 쓰면 "Error when writing to Native Messaging host: -101"
+# (프로세스가 즉시 종료)로 이어진다. 설치 시점에 node.exe의 절대 경로를
+# 찾아 host.bat에 직접 박아 넣어 PATH 의존성을 없앤다.
+function Find-NodeExecutable {
+    $cmd = Get-Command node -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+
+    $candidates = @(
+        "$env:ProgramFiles\nodejs\node.exe",
+        "${env:ProgramFiles(x86)}\nodejs\node.exe",
+        "$env:LOCALAPPDATA\Programs\nodejs\node.exe"
+    )
+    foreach ($candidate in $candidates) {
+        if (Test-Path $candidate) { return $candidate }
+    }
+
+    try {
+        $installDir = Get-ItemPropertyValue -Path "HKLM:\SOFTWARE\Node.js" -Name "InstallPath" -ErrorAction Stop
+        $exe = Join-Path $installDir "node.exe"
+        if (Test-Path $exe) { return $exe }
+    } catch {}
+
+    return $null
+}
+
 Write-Host "=== OpenCode Chrome Extension Installer ===" -ForegroundColor Cyan
 
 if ($PSScriptRoot) {
@@ -47,15 +75,13 @@ try {
     Write-Host "ERROR: Failed to copy host.js - $($_.Exception.Message)" -ForegroundColor Red
 }
 
-$sourceBat = Join-Path $scriptDir "host.bat"
-if (Test-Path $sourceBat) {
-    try {
-        Copy-Item -Path $sourceBat -Destination $nativeHostDir -Force
-        Write-Host "   host.bat installed" -ForegroundColor Gray
-    } catch {
-        Write-Host "ERROR: Failed to copy host.bat - $($_.Exception.Message)" -ForegroundColor Red
-    }
+$nodePath = Find-NodeExecutable
+if (-not $nodePath) {
+    Write-Host "ERROR: Node.js(node.exe)를 찾을 수 없습니다." -ForegroundColor Red
+    Write-Host "   https://nodejs.org/ 에서 설치한 뒤 이 설치 스크립트를 다시 실행하세요." -ForegroundColor Yellow
+    exit 1
 }
+Write-Host "   Node.js 발견: $nodePath" -ForegroundColor Gray
 
 $sourcePackageJson = Join-Path $scriptDir "package.json"
 if (Test-Path $sourcePackageJson) {
@@ -68,6 +94,11 @@ if (Test-Path $sourcePackageJson) {
 }
 
 $hostBatPath = Join-Path $nativeHostDir "host.bat"
+$hostJsPath = Join-Path $nativeHostDir "host.js"
+$hostBatContent = "@echo off`r`n`"$nodePath`" `"$hostJsPath`" %*`r`n"
+[System.IO.File]::WriteAllText($hostBatPath, $hostBatContent, (New-Object System.Text.UTF8Encoding $false))
+Write-Host "   host.bat generated (node: $nodePath)" -ForegroundColor Gray
+
 $manifestPath = Join-Path $nativeHostDir "manifest.json"
 $manifestContent = @{
     name            = "com.opencode.chrome"

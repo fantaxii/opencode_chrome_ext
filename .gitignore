@@ -26,3 +26,5 @@ key/
 # environment variables
 .env
 
+# claude, opencode
+.claude/
