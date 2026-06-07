@@ -427,11 +427,17 @@ yarn build
 
 #### 방법 1: 자동 설치 (권장)
 
+native-host 폴더의 `install.bat`을 더블클릭하면 됩니다 (PowerShell 실행 정책 제약을 자동으로 우회해서 `install.ps1`을 실행해주는 래퍼입니다).
+
+수동으로 실행하고 싶다면:
+
 ```powershell
 # 1. 압축 해제된 폴더에서 native-host 폴더로 이동
 #    예: opencode-chrome-ext-v1.0.0\native-host\
 
 # 2. 해당 폴더에서 PowerShell 실행 (또는 파일 우클릭 -> "PowerShell로 실행")
+#    그냥 ".\install.ps1"을 실행하면 "이 시스템에서 스크립트를 실행할 수 없습니다"
+#    오류(UnauthorizedAccess)가 날 수 있으므로, 아래처럼 -ExecutionPolicy Bypass를 붙여 실행하세요.
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 
 # 기본 설치 위치: %LOCALAPPDATA%\OpenCodeChrome
