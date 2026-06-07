@@ -11,6 +11,7 @@
   --error: #f44336;
   --bot-bg: #2d2d2d;
   --user-bg: #4a9eff;
+  --overlay-bg: rgba(37, 37, 37, 0.95);
 }
 
 .hidden {
@@ -716,7 +717,7 @@ body {
   text-align: center;
   z-index: 9999;
   padding: 40px 50px;
-  background-color: rgba(37, 37, 37, 0.95);
+  background-color: var(--overlay-bg);
   border: 1px solid var(--border);
   border-radius: 16px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
@@ -938,5 +939,6 @@ body {
     --text-secondary: #666666;
     --border: #e0e0e0;
     --bot-bg: #f0f0f0;
+    --overlay-bg: rgba(255, 255, 255, 0.95);
   }
 }
