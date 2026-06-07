@@ -68,14 +68,16 @@ function persistState() {
   chrome.storage.session.set({
     tabSessions: [...tabSessions],
     activeTabs: [...activeTabs],
-    tabLastShownInfo: [...tabLastShownInfo]
+    tabLastShownInfo: [...tabLastShownInfo],
+    currentActiveTabId
   }).catch(() => {});
 }
 
-chrome.storage.session.get(['tabSessions', 'activeTabs', 'tabLastShownInfo']).then((data) => {
+chrome.storage.session.get(['tabSessions', 'activeTabs', 'tabLastShownInfo', 'currentActiveTabId']).then((data) => {
   if (data.tabSessions) tabSessions = new Map(data.tabSessions);
   if (data.activeTabs) activeTabs = new Set(data.activeTabs);
   if (data.tabLastShownInfo) tabLastShownInfo = new Map(data.tabLastShownInfo);
+  if (data.currentActiveTabId) currentActiveTabId = data.currentActiveTabId;
 }).catch(() => {});
 
 debugLog('INFO', `Service Worker started - ${new Date().toISOString()}`);
@@ -1163,6 +1165,7 @@ chrome.action.onClicked.addListener((tab) => {
 // 탭 전환 시 — 활성 탭이면 Panel 유지, 아니면 닫기
 chrome.tabs.onActivated.addListener(({ tabId }) => {
   currentActiveTabId = tabId;
+  persistState();
 
   if (activeTabs.has(tabId)) {
     // 비활성 상태에서 페이지가 바뀌었을 수 있으니 복귀 시점에 비교
