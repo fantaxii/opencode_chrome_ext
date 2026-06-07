@@ -632,7 +632,7 @@ function subscribeToEvents(sessionId, port, onChunk, onComplete) {
               // 세션 ID 필터
               const evtSession = evt.properties?.sessionID
                 || evt.properties?.part?.sessionID
-                || evt.properties?.info?.id;
+                || evt.properties?.info?.sessionID;
               if (evtSession && evtSession !== sessionId) continue;
 
               switch (evt.type) {
