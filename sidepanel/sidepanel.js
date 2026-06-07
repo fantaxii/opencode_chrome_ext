@@ -162,8 +162,15 @@
         await chrome.storage.local.remove('pendingContextText');
         messageInput.value = pendingContextText.text;
         messageInput.dispatchEvent(new Event('input'));
-        messageInput.focus();
-        messageInput.setSelectionRange(messageInput.value.length, messageInput.value.length);
+
+        const focusInput = () => {
+          window.focus();
+          messageInput.focus();
+          messageInput.setSelectionRange(messageInput.value.length, messageInput.value.length);
+        };
+        focusInput();
+        // 패널이 막 열리는 시점에는 포커스 요청이 무시될 수 있어 한 번 더 시도
+        setTimeout(focusInput, 150);
       }
     } catch (e) {
       console.error('pendingContextText 처리 실패:', e);
