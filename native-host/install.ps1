@@ -34,6 +34,61 @@ function Find-NodeExecutable {
     return $null
 }
 
+function Install-NodeJS {
+    Write-Host ""
+    Write-Host "Node.js를 자동 설치합니다..." -ForegroundColor Cyan
+
+    # 1순위: winget (Windows 10 1709+ / Windows 11 기본 탑재)
+    $winget = Get-Command winget -ErrorAction SilentlyContinue
+    if ($winget) {
+        Write-Host "  [winget] Node.js LTS 설치 중..." -ForegroundColor Gray
+        try {
+            winget install --id OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements -e --silent 2>&1 | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "  Node.js 설치 완료 (winget)" -ForegroundColor Green
+                $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
+                            [System.Environment]::GetEnvironmentVariable("Path", "User")
+                return $true
+            }
+            Write-Host "  winget 종료 코드: $LASTEXITCODE" -ForegroundColor Yellow
+        } catch {
+            Write-Host "  winget 실패: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "  winget을 찾을 수 없음. MSI 직접 설치를 시도합니다." -ForegroundColor Yellow
+    }
+
+    # 2순위: nodejs.org LTS MSI 직접 다운로드
+    Write-Host "  [MSI] nodejs.org LTS 버전 정보 조회 중..." -ForegroundColor Gray
+    try {
+        $indexJson = Invoke-RestMethod -Uri "https://nodejs.org/dist/index.json" -TimeoutSec 30
+        $lts = $indexJson | Where-Object { $_.lts -ne $false } | Select-Object -First 1
+        $version = $lts.version
+        $arch = if ([Environment]::Is64BitOperatingSystem) { "x64" } else { "x86" }
+        $msiUrl = "https://nodejs.org/dist/$version/node-$version-$arch.msi"
+        $msiPath = Join-Path $env:TEMP "node-installer.msi"
+
+        Write-Host "  다운로드 중: Node.js $version ($arch)..." -ForegroundColor Gray
+        Invoke-WebRequest -Uri $msiUrl -OutFile $msiPath -TimeoutSec 300
+
+        Write-Host "  설치 중 (자동 설치)..." -ForegroundColor Gray
+        $proc = Start-Process msiexec.exe -ArgumentList "/i `"$msiPath`" /quiet /norestart" -Wait -PassThru
+        Remove-Item $msiPath -Force -ErrorAction SilentlyContinue
+
+        if ($proc.ExitCode -eq 0) {
+            Write-Host "  Node.js 설치 완료 (MSI)" -ForegroundColor Green
+            $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
+                        [System.Environment]::GetEnvironmentVariable("Path", "User")
+            return $true
+        }
+        Write-Host "  MSI 설치 실패 (ExitCode: $($proc.ExitCode))" -ForegroundColor Red
+    } catch {
+        Write-Host "  다운로드/설치 실패: $($_.Exception.Message)" -ForegroundColor Red
+    }
+
+    return $false
+}
+
 Write-Host "=== OpenCode Chrome Extension Installer ===" -ForegroundColor Cyan
 
 if ($PSScriptRoot) {
@@ -77,9 +132,16 @@ try {
 
 $nodePath = Find-NodeExecutable
 if (-not $nodePath) {
-    Write-Host "ERROR: Node.js(node.exe)를 찾을 수 없습니다." -ForegroundColor Red
-    Write-Host "   https://nodejs.org/ 에서 설치한 뒤 이 설치 스크립트를 다시 실행하세요." -ForegroundColor Yellow
-    exit 1
+    Write-Host "Node.js(node.exe)를 찾을 수 없습니다." -ForegroundColor Yellow
+    $installed = Install-NodeJS
+    if ($installed) {
+        $nodePath = Find-NodeExecutable
+    }
+    if (-not $nodePath) {
+        Write-Host "ERROR: Node.js 자동 설치에 실패했습니다." -ForegroundColor Red
+        Write-Host "   https://nodejs.org/ 에서 수동으로 설치한 뒤 이 스크립트를 다시 실행하세요." -ForegroundColor Yellow
+        exit 1
+    }
 }
 Write-Host "   Node.js 발견: $nodePath" -ForegroundColor Gray
 
