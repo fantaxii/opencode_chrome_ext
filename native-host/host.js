@@ -177,8 +177,10 @@ async function startOpenCodeServer(preferredPort = 4096) {
       });
     } else {
       fileLog('INFO', `startOpenCodeServer: Spawning on Windows: ${found.path} serve --port ${port}`);
+      const isCmd = /\.(cmd|bat)$/i.test(found.path);
       opencodeProcess = spawn(found.path, ['serve', '--port', port.toString()], {
-        stdio: ['pipe', 'pipe', 'pipe']
+        stdio: ['pipe', 'pipe', 'pipe'],
+        shell: isCmd
       });
     }
 
