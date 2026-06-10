@@ -317,8 +317,14 @@ async function periodicServerCheck() {
   }
 }
 
-// Periodic 체크 설정 (30초마다)
-setInterval(periodicServerCheck, 30000);
+// Periodic 체크 설정 (chrome.alarms 사용 — setInterval은 MV3 SW 종료 시 소멸)
+// SW 재시작마다 create를 호출하면 기존 알람이 리셋되므로 없을 때만 생성
+chrome.alarms.get('periodicServerCheck', (existing) => {
+  if (!existing) chrome.alarms.create('periodicServerCheck', { periodInMinutes: 1 });
+});
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === 'periodicServerCheck') periodicServerCheck();
+});
 
 async function getWorkingDirectory() {
   try {
@@ -1199,8 +1205,5 @@ async function testNativeMessaging() {
     return false;
   }
 }
-
-// 초기화 시 Native Messaging 테스트
-testNativeMessaging();
 
 console.log('OpenCode Chrome Extension Background Service Worker 로드 완료');
