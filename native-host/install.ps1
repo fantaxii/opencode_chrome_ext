@@ -6,6 +6,10 @@ param(
 
 $ErrorActionPreference = "Continue"
 
+# 콘솔 인코딩을 UTF-8로 강제 설정 (한글 깨짐 방지)
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
 # 수동으로 Node.js를 설치한 직후 PowerShell을 재시작하지 않아도 되도록
 # 레지스트리에서 최신 PATH를 강제로 읽어온다.
 $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
