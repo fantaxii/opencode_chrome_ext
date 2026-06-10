@@ -581,7 +581,7 @@ function subscribeToEvents(sessionId, port, onChunk, onComplete) {
           debugLog('ERROR', `SSE timeout - sessionId=${sessionId}, assistantMessageId=${assistantMessageId || 'none'}, bufferLength=${buffer.length}`);
           onComplete(buffer || '', '응답 시간 초과');
         }
-      }, 90000);
+      }, 180000);
     }
     resetTimeout();
 
