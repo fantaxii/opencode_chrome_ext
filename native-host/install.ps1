@@ -6,6 +6,11 @@ param(
 
 $ErrorActionPreference = "Continue"
 
+# 수동으로 Node.js를 설치한 직후 PowerShell을 재시작하지 않아도 되도록
+# 레지스트리에서 최신 PATH를 강제로 읽어온다.
+$env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
+            [System.Environment]::GetEnvironmentVariable("Path", "User")
+
 # Chrome이 Native Messaging Host를 띄울 때 쓰는 프로세스 환경에는
 # 사용자의 PATH가 그대로 반영되지 않는 경우가 많다 (Node 설치 후 PATH가
 # 갱신돼도 이미 떠 있는 explorer/Chrome 세션은 못 봄). 그래서 host.bat에
@@ -34,9 +39,81 @@ function Find-NodeExecutable {
     return $null
 }
 
+function Set-ProxyCredentials {
+    param([string]$ProxyUri, [System.Net.ICredentials]$Credentials)
+    $proxy = New-Object System.Net.WebProxy($ProxyUri)
+    $proxy.Credentials = $Credentials
+    [System.Net.WebRequest]::DefaultWebProxy = $proxy
+}
+
+function Configure-Proxy {
+    # 1순위: 시스템 프록시 + 현재 Windows 로그인 자격증명으로 자동 시도
+    $systemProxy = [System.Net.WebRequest]::GetSystemWebProxy()
+    $systemProxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredentials
+    [System.Net.WebRequest]::DefaultWebProxy = $systemProxy
+    Write-Host "  시스템 프록시 + Windows 자격증명 적용" -ForegroundColor Gray
+
+    # http_proxy / https_proxy 환경 변수가 이미 설정돼 있으면 npm 등에도 전달
+    $existingProxy = if ($env:https_proxy) { $env:https_proxy } elseif ($env:http_proxy) { $env:http_proxy } else { $null }
+    if ($existingProxy) {
+        Write-Host "  기존 환경 변수 프록시 감지: $existingProxy" -ForegroundColor Gray
+        Apply-ProxyEnvVars -ProxyUri $existingProxy
+    }
+}
+
+function Apply-ProxyEnvVars {
+    param([string]$ProxyUri)
+    # curl, npm, git, wget 등 http_proxy 환경 변수를 읽는 도구에 적용
+    $env:http_proxy  = $ProxyUri
+    $env:https_proxy = $ProxyUri
+    $env:HTTP_PROXY  = $ProxyUri
+    $env:HTTPS_PROXY = $ProxyUri
+}
+
+function Apply-NpmProxy {
+    param([string]$ProxyUri)
+    $npm = Get-Command npm -ErrorAction SilentlyContinue
+    if ($npm) {
+        npm config set proxy       $ProxyUri 2>&1 | Out-Null
+        npm config set https-proxy $ProxyUri 2>&1 | Out-Null
+        Write-Host "  npm proxy 설정 완료: $ProxyUri" -ForegroundColor Gray
+    }
+}
+
+function Configure-ProxyManual {
+    Write-Host ""
+    Write-Host "  프록시 인증이 필요합니다. 프록시 정보를 입력하세요." -ForegroundColor Yellow
+    Write-Host "  (프록시를 사용하지 않으면 Enter를 누르세요)" -ForegroundColor Gray
+    $proxyUri = Read-Host "  프록시 주소 (예: http://proxy.company.com:8080)"
+    if ([string]::IsNullOrWhiteSpace($proxyUri)) { return $false }
+
+    $proxyUser = Read-Host "  프록시 사용자명 (없으면 Enter)"
+    if (-not [string]::IsNullOrWhiteSpace($proxyUser)) {
+        $proxyPass = Read-Host "  프록시 비밀번호" -AsSecureString
+        $cred = New-Object System.Net.NetworkCredential($proxyUser, $proxyPass)
+        # 자격증명을 URL에 인코딩해 환경 변수에도 포함 (user:pass@host 형식)
+        $plainPass = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto(
+            [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($proxyPass))
+        $uri = [System.Uri]$proxyUri
+        $proxyUriWithCred = "$($uri.Scheme)://${proxyUser}:${plainPass}@$($uri.Host):$($uri.Port)"
+        Set-ProxyCredentials -ProxyUri $proxyUri -Credentials $cred
+        Apply-ProxyEnvVars -ProxyUri $proxyUriWithCred
+        Apply-NpmProxy     -ProxyUri $proxyUriWithCred
+    } else {
+        Set-ProxyCredentials -ProxyUri $proxyUri -Credentials ([System.Net.CredentialCache]::DefaultNetworkCredentials)
+        Apply-ProxyEnvVars -ProxyUri $proxyUri
+        Apply-NpmProxy     -ProxyUri $proxyUri
+    }
+    Write-Host "  프록시 설정 완료: $proxyUri" -ForegroundColor Green
+    return $true
+}
+
 function Install-NodeJS {
     Write-Host ""
     Write-Host "Node.js를 자동 설치합니다..." -ForegroundColor Cyan
+
+    # 프록시 환경 대응: 시스템 프록시 + Windows 자격증명 자동 적용
+    Configure-Proxy
 
     # 1순위: winget (Windows 10 1709+ / Windows 11 기본 탑재)
     $winget = Get-Command winget -ErrorAction SilentlyContinue
@@ -58,32 +135,44 @@ function Install-NodeJS {
         Write-Host "  winget을 찾을 수 없음. MSI 직접 설치를 시도합니다." -ForegroundColor Yellow
     }
 
-    # 2순위: nodejs.org LTS MSI 직접 다운로드
-    Write-Host "  [MSI] nodejs.org LTS 버전 정보 조회 중..." -ForegroundColor Gray
-    try {
-        $indexJson = Invoke-RestMethod -Uri "https://nodejs.org/dist/index.json" -TimeoutSec 30
-        $lts = $indexJson | Where-Object { $_.lts -ne $false } | Select-Object -First 1
-        $version = $lts.version
-        $arch = if ([Environment]::Is64BitOperatingSystem) { "x64" } else { "x86" }
-        $msiUrl = "https://nodejs.org/dist/$version/node-$version-$arch.msi"
-        $msiPath = Join-Path $env:TEMP "node-installer.msi"
+    # 2순위: nodejs.org LTS MSI 직접 다운로드 (프록시 재시도 포함)
+    $downloadAttempts = @(
+        @{ Label = "시스템 프록시 자동"; Configured = $true }
+        @{ Label = "수동 프록시 입력";   Configured = $false }
+    )
 
-        Write-Host "  다운로드 중: Node.js $version ($arch)..." -ForegroundColor Gray
-        Invoke-WebRequest -Uri $msiUrl -OutFile $msiPath -TimeoutSec 300
-
-        Write-Host "  설치 중 (자동 설치)..." -ForegroundColor Gray
-        $proc = Start-Process msiexec.exe -ArgumentList "/i `"$msiPath`" /quiet /norestart" -Wait -PassThru
-        Remove-Item $msiPath -Force -ErrorAction SilentlyContinue
-
-        if ($proc.ExitCode -eq 0) {
-            Write-Host "  Node.js 설치 완료 (MSI)" -ForegroundColor Green
-            $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
-                        [System.Environment]::GetEnvironmentVariable("Path", "User")
-            return $true
+    foreach ($attempt in $downloadAttempts) {
+        if (-not $attempt.Configured) {
+            $ok = Configure-ProxyManual
+            if (-not $ok) { break }
         }
-        Write-Host "  MSI 설치 실패 (ExitCode: $($proc.ExitCode))" -ForegroundColor Red
-    } catch {
-        Write-Host "  다운로드/설치 실패: $($_.Exception.Message)" -ForegroundColor Red
+
+        Write-Host "  [MSI] nodejs.org LTS 버전 정보 조회 중... ($($attempt.Label))" -ForegroundColor Gray
+        try {
+            $indexJson = Invoke-RestMethod -Uri "https://nodejs.org/dist/index.json" -TimeoutSec 30 -UseDefaultCredentials
+            $lts = $indexJson | Where-Object { $_.lts -ne $false } | Select-Object -First 1
+            $version = $lts.version
+            $arch = if ([Environment]::Is64BitOperatingSystem) { "x64" } else { "x86" }
+            $msiUrl = "https://nodejs.org/dist/$version/node-$version-$arch.msi"
+            $msiPath = Join-Path $env:TEMP "node-installer.msi"
+
+            Write-Host "  다운로드 중: Node.js $version ($arch)..." -ForegroundColor Gray
+            Invoke-WebRequest -Uri $msiUrl -OutFile $msiPath -TimeoutSec 300 -UseDefaultCredentials
+
+            Write-Host "  설치 중 (자동 설치)..." -ForegroundColor Gray
+            $proc = Start-Process msiexec.exe -ArgumentList "/i `"$msiPath`" /quiet /norestart" -Wait -PassThru
+            Remove-Item $msiPath -Force -ErrorAction SilentlyContinue
+
+            if ($proc.ExitCode -eq 0) {
+                Write-Host "  Node.js 설치 완료 (MSI)" -ForegroundColor Green
+                $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
+                            [System.Environment]::GetEnvironmentVariable("Path", "User")
+                return $true
+            }
+            Write-Host "  MSI 설치 실패 (ExitCode: $($proc.ExitCode))" -ForegroundColor Red
+        } catch {
+            Write-Host "  다운로드/설치 실패: $($_.Exception.Message)" -ForegroundColor Red
+        }
     }
 
     return $false
