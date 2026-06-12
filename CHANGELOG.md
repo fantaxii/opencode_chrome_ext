@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.2](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.1.1...v2.1.2) (2026-06-12)
+
+
+### Bug Fixes
+
+* --no-npm 제거로 release 시 package.json 버전 자동 범프 복구 ([16efa2c](https://github.com/fantaXII/opencode_chrome_ext/commit/16efa2c1c6cb14d5b8bfcc78046ed6e1bf80f0fe))
+
 ## [2.1.1](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.1.0...v2.1.1) (2026-06-12)
 
 
