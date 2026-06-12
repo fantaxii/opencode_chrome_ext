@@ -1,5 +1,12 @@
 # Changelog
 
+# [2.2.0](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.1.4...v2.2.0) (2026-06-12)
+
+
+### Features
+
+* 아이콘 생성 스크립트 개선 및 >_ 터미널 심볼 아이콘 적용 ([5f5d7f5](https://github.com/fantaXII/opencode_chrome_ext/commit/5f5d7f5a5dcf46d27c587a4828e6a0d916e5a588))
+
 ## [2.1.4](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.1.3...v2.1.4) (2026-06-12)
 
 
