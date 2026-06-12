@@ -82,20 +82,30 @@ async function build() {
 
   try {
     const archiver = require('archiver');
-    const output = fs.createWriteStream(zipPath);
-    const archive = archiver('zip', { zlib: { level: 9 } });
 
-    await new Promise((resolve, reject) => {
-      output.on('close', () => {
-        console.log(`   ✓ Created: ${zipName} (${archive.pointer()} bytes)`);
-        resolve();
+    const createZip = (outputPath, globPattern, globOptions) =>
+      new Promise((resolve, reject) => {
+        const output = fs.createWriteStream(outputPath);
+        const archive = archiver('zip', { zlib: { level: 9 } });
+        output.on('close', () => resolve(archive.pointer()));
+        archive.on('error', reject);
+        archive.pipe(output);
+        archive.glob(globPattern, globOptions);
+        archive.finalize();
       });
-      archive.on('error', reject);
-      
-      archive.pipe(output);
-      archive.directory(distDir, false);
-      archive.finalize();
+
+    // GitHub 배포용 (native-host 포함)
+    const bytes1 = await createZip(zipPath, '**/*', { cwd: distDir });
+    console.log(`   ✓ Created: ${zipName} (${bytes1} bytes)`);
+
+    // Chrome Web Store용 (native-host 제외)
+    const webstoreZipName = `opencode-chrome-ext-v${version}-webstore.zip`;
+    const webstoreZipPath = path.join(distDir, webstoreZipName);
+    const bytes2 = await createZip(webstoreZipPath, '**/*', {
+      cwd: distDir,
+      ignore: ['native-host/**', zipName],
     });
+    console.log(`   ✓ Created: ${webstoreZipName} (${bytes2} bytes)`);
   } catch (err) {
     console.log(`   ℹ archiver not installed, skipping zip (run: yarn add -D archiver)`);
   }
