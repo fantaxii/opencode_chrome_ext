@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.4](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.1.3...v2.1.4) (2026-06-12)
+
+
+### Bug Fixes
+
+* webstore zip에서 manifest key 필드 자동 제거 ([9b3656f](https://github.com/fantaXII/opencode_chrome_ext/commit/9b3656f4893c8763af1e9b6f4d3db9a93a6871f6))
+
 ## [2.1.3](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.1.2...v2.1.3) (2026-06-12)
 
 
