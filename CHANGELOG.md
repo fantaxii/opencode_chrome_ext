@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.1](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.2.0...v2.2.1) (2026-06-12)
+
+
+### Bug Fixes
+
+* 미사용 scripting 권한 제거 ([e3adf0f](https://github.com/fantaXII/opencode_chrome_ext/commit/e3adf0f23430df54796b363f0dcec1ba1550b5c9))
+
 # [2.2.0](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.1.4...v2.2.0) (2026-06-12)
 
 
