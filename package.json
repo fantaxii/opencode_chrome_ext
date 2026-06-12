@@ -1,13 +1,13 @@
 {
   "name": "opencode-chrome-ext",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "OpenCode를 사이드패널에서 사용하는 Chrome 확장 프로그램",
   "main": "index.js",
   "scripts": {
     "prebuild": "rm -rf dist",
     "build": "node scripts/build.js",
-    "release": "release-it --no-npm",
-    "release-it": "release-it --no-npm"
+    "release": "release-it",
+    "release-it": "release-it"
   },
   "keywords": [
     "chrome-extension",
