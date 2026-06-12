@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.1](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.1.0...v2.1.1) (2026-06-12)
+
+
+### Bug Fixes
+
+* package.json 버전 2.1.0 동기화 및 Web Store용 zip 분리 생성 ([9671507](https://github.com/fantaXII/opencode_chrome_ext/commit/96715070f3eeedf1606f02d3726d6bc56ac298e8))
+
 # [2.1.0](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.0.0...v2.1.0) (2026-06-12)
 
 
