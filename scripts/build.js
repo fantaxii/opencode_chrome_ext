@@ -98,12 +98,20 @@ async function build() {
     const bytes1 = await createZip(zipPath, '**/*', { cwd: distDir });
     console.log(`   ✓ Created: ${zipName} (${bytes1} bytes)`);
 
-    // Chrome Web Store용 (native-host 제외)
+    // Chrome Web Store용 (native-host 제외, key 필드 제거)
     const webstoreZipName = `opencode-chrome-ext-v${version}-webstore.zip`;
     const webstoreZipPath = path.join(distDir, webstoreZipName);
-    const bytes2 = await createZip(webstoreZipPath, '**/*', {
-      cwd: distDir,
-      ignore: ['native-host/**', zipName],
+    const webstoreManifest = JSON.parse(fs.readFileSync(distManifestPath, 'utf8'));
+    delete webstoreManifest.key;
+    const bytes2 = await new Promise((resolve, reject) => {
+      const output = fs.createWriteStream(webstoreZipPath);
+      const archive = archiver('zip', { zlib: { level: 9 } });
+      output.on('close', () => resolve(archive.pointer()));
+      archive.on('error', reject);
+      archive.pipe(output);
+      archive.glob('**/*', { cwd: distDir, ignore: ['native-host/**', zipName, 'manifest.json'] });
+      archive.append(JSON.stringify(webstoreManifest, null, 2), { name: 'manifest.json' });
+      archive.finalize();
     });
     console.log(`   ✓ Created: ${webstoreZipName} (${bytes2} bytes)`);
   } catch (err) {
