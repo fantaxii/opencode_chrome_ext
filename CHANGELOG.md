@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.3](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.1.2...v2.1.3) (2026-06-12)
+
+
+### Bug Fixes
+
+* host_permissions 포트 와일드카드를 명시적 포트 목록으로 교체 ([d9d423a](https://github.com/fantaXII/opencode_chrome_ext/commit/d9d423ad0bdc19e117bef92b472e1ab5754c57f9))
+
 ## [2.1.2](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.1.1...v2.1.2) (2026-06-12)
 
 
