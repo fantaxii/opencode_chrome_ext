@@ -54,6 +54,13 @@ async function build() {
     { src: 'content.js', dest: 'content.js' }
   ];
 
+  // build:installer가 먼저 실행된 경우 .exe를 dist에 포함
+  const exeName = `opencode-native-host-setup-v${version}.exe`;
+  const exeSrc = path.join(rootDir, exeName);
+  if (fs.existsSync(exeSrc)) {
+    filesToCopy.push({ src: exeName, dest: exeName });
+  }
+
   for (const file of filesToCopy) {
     const src = path.join(rootDir, file.src);
     const dest = path.join(distDir, file.dest);
@@ -109,7 +116,7 @@ async function build() {
       output.on('close', () => resolve(archive.pointer()));
       archive.on('error', reject);
       archive.pipe(output);
-      archive.glob('**/*', { cwd: distDir, ignore: ['native-host/**', zipName, 'manifest.json'] });
+      archive.glob('**/*', { cwd: distDir, ignore: ['native-host/**', zipName, '*.exe', 'manifest.json'] });
       archive.append(JSON.stringify(webstoreManifest, null, 2), { name: 'manifest.json' });
       archive.finalize();
     });

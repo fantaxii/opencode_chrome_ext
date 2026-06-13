@@ -1,7 +1,9 @@
 # OpenCode Chrome Extension - Native Messaging Host Installer
 
 param(
-    [string]$InstallPath = "$env:LOCALAPPDATA\OpenCodeChrome"
+    [string]$InstallPath = "$env:LOCALAPPDATA\OpenCodeChrome",
+    [string]$ExtensionId = "adiacpiichkecbkodjeddeocfpkhigfg",
+    [switch]$SkipNpmInstall
 )
 
 $ErrorActionPreference = "Continue"
@@ -260,7 +262,7 @@ $manifestContent = @{
     description     = "OpenCode Chrome Extension Native Messaging Host"
     path            = $hostBatPath
     type            = "stdio"
-    allowed_origins = @("chrome-extension://adiacpiichkecbkodjeddeocfpkhigfg/")
+    allowed_origins = @("chrome-extension://$ExtensionId/")
 } | ConvertTo-Json -Depth 3
 [System.IO.File]::WriteAllText($manifestPath, $manifestContent, (New-Object System.Text.UTF8Encoding $false))
 Write-Host "   manifest.json installed (path: $hostBatPath)" -ForegroundColor Gray
@@ -287,25 +289,27 @@ Write-Host "  Manifest: $manifestPath" -ForegroundColor Gray
 Write-Host ""
 Write-Host "Please reload Chrome extension." -ForegroundColor Yellow
 
-# npm dependencies install
-Write-Host ""
-Write-Host "Installing npm dependencies..." -ForegroundColor Gray
-$npmPath = Get-Command npm -ErrorAction SilentlyContinue
-if ($npmPath) {
-    try {
-        Push-Location $nativeHostDir
-        npm install
-        Pop-Location
-        Write-Host "  ✓ npm install complete" -ForegroundColor Green
-    } catch {
-        Write-Host "  ⚠ npm install failed. Please run manually:" -ForegroundColor Yellow
-        Write-Host "    cd $nativeHostDir" -ForegroundColor Gray
-        Write-Host "    npm install" -ForegroundColor Gray
+# npm dependencies install (번들된 node_modules 사용 시 -SkipNpmInstall으로 건너뜀)
+if (-not $SkipNpmInstall) {
+    Write-Host ""
+    Write-Host "Installing npm dependencies..." -ForegroundColor Gray
+    $npmPath = Get-Command npm -ErrorAction SilentlyContinue
+    if ($npmPath) {
+        try {
+            Push-Location $nativeHostDir
+            npm install
+            Pop-Location
+            Write-Host "  ✓ npm install complete" -ForegroundColor Green
+        } catch {
+            Write-Host "  ⚠ npm install failed. Please run manually:" -ForegroundColor Yellow
+            Write-Host "    cd $nativeHostDir" -ForegroundColor Gray
+            Write-Host "    npm install" -ForegroundColor Gray
+        }
+    } else {
+        Write-Host "  ⚠ npm not found. Please install Node.js first:" -ForegroundColor Yellow
+        Write-Host "    https://nodejs.org/" -ForegroundColor Gray
+        Write-Host "    Then run: cd $nativeHostDir && npm install" -ForegroundColor Gray
     }
-} else {
-    Write-Host "  ⚠ npm not found. Please install Node.js first:" -ForegroundColor Yellow
-    Write-Host "    https://nodejs.org/" -ForegroundColor Gray
-    Write-Host "    Then run: cd $nativeHostDir && npm install" -ForegroundColor Gray
 }
 
 # WSL2 networking configuration check
