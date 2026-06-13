@@ -1,5 +1,12 @@
 # Changelog
 
+# [2.3.0](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.2.1...v2.3.0) (2026-06-13)
+
+
+### Features
+
+* NSIS Windows 인스톨러 및 Extension ID 관리 체계 추가 ([1e5ed47](https://github.com/fantaXII/opencode_chrome_ext/commit/1e5ed472a08cad703cc20a8b2f363b5093318eed))
+
 ## [2.2.1](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.2.0...v2.2.1) (2026-06-12)
 
 
