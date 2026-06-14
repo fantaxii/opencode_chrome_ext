@@ -5,18 +5,16 @@
     "https": "http://proxy.example.com:8080",
     "noProxy": "localhost,127.0.0.1,*.internal.example.com"
   },
-  "mcp": {
-    "mcpServers": {
-      "example-server": {
-        "type": "http",
-        "url": "http://your-mcp-server.internal/mcp"
-      },
-      "example-server-with-auth": {
-        "type": "http",
-        "url": "http://your-mcp-server.internal/mcp",
-        "headers": {
-          "Authorization": "Bearer your-token-here"
-        }
+  "mcpServers": {
+    "example-server": {
+      "type": "http",
+      "url": "http://your-mcp-server.internal/mcp"
+    },
+    "example-server-with-auth": {
+      "type": "http",
+      "url": "http://your-mcp-server.internal/mcp",
+      "headers": {
+        "Authorization": "Bearer your-token-here"
       }
     }
   }

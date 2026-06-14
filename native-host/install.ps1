@@ -122,10 +122,10 @@ function Configure-ProxyManual {
 function Merge-ClaudeJson {
     param(
         [string]$TargetPath,
-        [PSCustomObject]$McpConfig
+        [PSCustomObject]$McpServers
     )
 
-    if (-not $McpConfig -or -not $McpConfig.mcpServers) {
+    if (-not $McpServers) {
         Write-Host "  MCP 설정 없음 - SKIP ($TargetPath)" -ForegroundColor Gray
         return
     }
@@ -156,7 +156,7 @@ function Merge-ClaudeJson {
     }
 
     $added = 0; $skipped = 0
-    $McpConfig.mcpServers.PSObject.Properties | ForEach-Object {
+    $McpServers.PSObject.Properties | ForEach-Object {
         if ($existing.mcpServers.PSObject.Properties[$_.Name]) {
             Write-Host "  MCP 서버 '$($_.Name)' 이미 설치됨 - SKIP" -ForegroundColor Yellow
             $skipped++
@@ -272,18 +272,21 @@ if (Test-Path $privateConfigPath) {
 if ($privateConfig -and $privateConfig.proxy) {
     $p = $privateConfig.proxy
     if ($p.http) {
-        $env:http_proxy = $p.http
-        $env:HTTP_PROXY = $p.http
+        $env:http_proxy = $p.http;  $env:HTTP_PROXY  = $p.http
+        [System.Environment]::SetEnvironmentVariable('http_proxy', $p.http,  'User')
+        [System.Environment]::SetEnvironmentVariable('HTTP_PROXY',  $p.http,  'User')
     }
     if ($p.https) {
-        $env:https_proxy = $p.https
-        $env:HTTPS_PROXY = $p.https
+        $env:https_proxy = $p.https; $env:HTTPS_PROXY = $p.https
+        [System.Environment]::SetEnvironmentVariable('https_proxy', $p.https, 'User')
+        [System.Environment]::SetEnvironmentVariable('HTTPS_PROXY', $p.https, 'User')
     }
     if ($p.noProxy) {
-        $env:no_proxy = $p.noProxy
-        $env:NO_PROXY  = $p.noProxy
+        $env:no_proxy = $p.noProxy;  $env:NO_PROXY    = $p.noProxy
+        [System.Environment]::SetEnvironmentVariable('no_proxy', $p.noProxy, 'User')
+        [System.Environment]::SetEnvironmentVariable('NO_PROXY',  $p.noProxy, 'User')
     }
-    Write-Host "Proxy 환경변수 설정 완료 (HTTP=$($p.http))" -ForegroundColor Gray
+    Write-Host "Proxy 환경변수 설정 완료 (HTTP=$($p.http)) - 사용자 환경변수에 영구 저장됨" -ForegroundColor Gray
 }
 
 $sourceHost = Join-Path $scriptDir "host.js"
@@ -452,7 +455,7 @@ if ($wslConfigContent -notmatch "networkingMode\s*=\s*mirrored") {
 }
 
 # ─── Claude Code .claude.json MCP 설정 ───────────────────────────────
-if ($privateConfig -and $privateConfig.mcp) {
+if ($privateConfig -and $privateConfig.mcpServers) {
     Write-Host ""
     Write-Host "Claude Code MCP 설정 중..." -ForegroundColor Cyan
 
@@ -463,7 +466,7 @@ if ($privateConfig -and $privateConfig.mcp) {
                     (Test-Path $winClaudeJson)
     if ($winHasClaude) {
         Write-Host "  Windows .claude.json 설정: $winClaudeJson" -ForegroundColor Gray
-        Merge-ClaudeJson -TargetPath $winClaudeJson -McpConfig $privateConfig.mcp
+        Merge-ClaudeJson -TargetPath $winClaudeJson -McpServers $privateConfig.mcpServers
     } else {
         Write-Host "  Windows에 claude/opencode 없고 .claude.json도 없음 - SKIP" -ForegroundColor Gray
     }
@@ -482,7 +485,7 @@ if ($privateConfig -and $privateConfig.mcp) {
             $wslClaudeJson = Join-Path $wslWinPath ".claude.json"
 
             Write-Host "  WSL2 .claude.json 설정 ($defaultDistro): $wslClaudeJson" -ForegroundColor Gray
-            Merge-ClaudeJson -TargetPath $wslClaudeJson -McpConfig $privateConfig.mcp
+            Merge-ClaudeJson -TargetPath $wslClaudeJson -McpServers $privateConfig.mcpServers
         } else {
             Write-Host "  WSL2에 opencode 없음 - WSL2 SKIP" -ForegroundColor Gray
         }
@@ -491,8 +494,10 @@ if ($privateConfig -and $privateConfig.mcp) {
     }
 
     Write-Host "MCP 설정 완료!" -ForegroundColor Green
+}
 
-    # 보안 정리: 평문 자격증명 삭제
+# 보안 정리: privateConfig가 로드됐으면 항상 삭제 (MCP 유무와 무관)
+if ($privateConfig) {
     Remove-Item $privateConfigPath -Force -ErrorAction SilentlyContinue
     Write-Host "config.private.json 삭제 완료 (보안 정리)" -ForegroundColor Gray
 }

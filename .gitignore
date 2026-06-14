@@ -10,6 +10,7 @@ docs/
 
 # dependencies
 node_modules/
+native-host/package-lock.json
 
 # logs
 *.log
