@@ -150,9 +150,18 @@ function Merge-McpJson {
         Write-Host "  백업 완료: $backupPath" -ForegroundColor Gray
 
         try {
-            $existing = Get-Content $TargetPath -Raw -Encoding UTF8 | ConvertFrom-Json
-            if (-not $existing.mcpServers) {
-                $existing | Add-Member -NotePropertyName mcpServers -NotePropertyValue ([PSCustomObject]@{})
+            $rawContent = Get-Content $TargetPath -Raw -Encoding UTF8
+            if ([string]::IsNullOrWhiteSpace($rawContent)) {
+                Write-Host "  기존 .mcp.json 비어 있음 - 초기화" -ForegroundColor Yellow
+                $existing = [PSCustomObject]@{ mcpServers = [PSCustomObject]@{} }
+            } else {
+                $existing = $rawContent | ConvertFrom-Json
+                if ($null -eq $existing) {
+                    Write-Host "  기존 .mcp.json 파싱 결과 null - 초기화" -ForegroundColor Yellow
+                    $existing = [PSCustomObject]@{ mcpServers = [PSCustomObject]@{} }
+                } elseif (-not $existing.mcpServers) {
+                    $existing | Add-Member -NotePropertyName mcpServers -NotePropertyValue ([PSCustomObject]@{})
+                }
             }
         } catch {
             Write-Host "  기존 .mcp.json 파싱 실패, 빈 객체로 재생성: $_" -ForegroundColor Yellow
@@ -179,8 +188,15 @@ function Merge-McpJson {
     }
 
     $jsonStr = $existing | ConvertTo-Json -Depth 10
-    (Format-Json -Json $jsonStr) | Set-Content $TargetPath -Encoding UTF8
-    Write-Host "  .mcp.json 저장 완료 (추가: $added, 스킵: $skipped)" -ForegroundColor Gray
+    Write-Host "  JSON 직렬화 길이: $($jsonStr.Length)" -ForegroundColor Gray
+    $formatted = Format-Json -Json $jsonStr
+    Write-Host "  Format-Json 결과 길이: $($formatted.Length)" -ForegroundColor Gray
+    try {
+        [System.IO.File]::WriteAllText($TargetPath, $formatted, (New-Object System.Text.UTF8Encoding $false))
+        Write-Host "  .mcp.json 저장 완료 (추가: $added, 스킵: $skipped)" -ForegroundColor Green
+    } catch {
+        Write-Host "  .mcp.json 저장 실패: $_ ($TargetPath)" -ForegroundColor Red
+    }
 }
 
 function Install-NodeJS {
