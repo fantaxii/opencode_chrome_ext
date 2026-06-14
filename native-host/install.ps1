@@ -282,9 +282,15 @@ if ($privateConfig -and $privateConfig.proxy) {
         [System.Environment]::SetEnvironmentVariable('HTTPS_PROXY', $p.https, 'User')
     }
     if ($p.noProxy) {
-        $env:no_proxy = $p.noProxy;  $env:NO_PROXY    = $p.noProxy
-        [System.Environment]::SetEnvironmentVariable('no_proxy', $p.noProxy, 'User')
-        [System.Environment]::SetEnvironmentVariable('NO_PROXY',  $p.noProxy, 'User')
+        # NO_PROXY는 기존 항목 보존 + 신규 항목 추가 (중복 제거)
+        $existingNoProxy = [System.Environment]::GetEnvironmentVariable('NO_PROXY', 'User')
+        $merged = (@($existingNoProxy -split ',') + @($p.noProxy -split ',') |
+                   Where-Object { $_ -match '\S' } |
+                   ForEach-Object { $_.Trim() } |
+                   Select-Object -Unique) -join ','
+        $env:no_proxy = $merged;  $env:NO_PROXY = $merged
+        [System.Environment]::SetEnvironmentVariable('no_proxy', $merged, 'User')
+        [System.Environment]::SetEnvironmentVariable('NO_PROXY',  $merged, 'User')
     }
     Write-Host "Proxy 환경변수 설정 완료 (HTTP=$($p.http)) - 사용자 환경변수에 영구 저장됨" -ForegroundColor Gray
 }
