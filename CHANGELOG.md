@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.2](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.4.1...v2.4.2) (2026-06-14)
+
+
+### Bug Fixes
+
+* WSL opencode 탐지에 공식 설치 경로(~/.opencode/bin) 직접 확인 추가 ([9848e74](https://github.com/fantaXII/opencode_chrome_ext/commit/9848e74a33616b510387bb271474c9809086e879))
+
 ## [2.4.1](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.4.0...v2.4.1) (2026-06-14)
 
 
