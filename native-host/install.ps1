@@ -118,6 +118,18 @@ function Configure-ProxyManual {
     return $true
 }
 
+function Format-Json {
+    param([string]$Json)
+    $indent = 0
+    ($Json -split '\n' | ForEach-Object {
+        $line = $_.Trim()
+        if ($line -match '^[}\]]') { $indent -= 2 }
+        $out = (' ' * [Math]::Max($indent, 0)) + $line
+        if ($line -match '[{\[]$') { $indent += 2 }
+        $out
+    }) -join "`n"
+}
+
 function Merge-McpJson {
     param(
         [string]$TargetPath,
@@ -166,7 +178,7 @@ function Merge-McpJson {
         }
     }
 
-    $existing | ConvertTo-Json -Depth 10 | Set-Content $TargetPath -Encoding UTF8
+    $existing | ConvertTo-Json -Depth 10 | Format-Json | Set-Content $TargetPath -Encoding UTF8
     Write-Host "  .mcp.json 저장 완료 (추가: $added, 스킵: $skipped)" -ForegroundColor Gray
 }
 
