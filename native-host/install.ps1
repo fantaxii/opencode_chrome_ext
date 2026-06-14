@@ -8,9 +8,8 @@ param(
 
 $ErrorActionPreference = "Continue"
 
-# 콘솔 인코딩을 UTF-8로 강제 설정 (한글 깨짐 방지)
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$OutputEncoding = [System.Text.Encoding]::UTF8
+# NSIS nsExec는 시스템 코드 페이지(CP949)로 출력을 읽으므로 UTF-8 강제 설정 제거
+# (강제 설정 시 NSIS 설치 창에서 한글이 깨짐)
 
 # 설치 트랜스크립트 (디버그용)
 $installLogDir = "$env:LOCALAPPDATA\OpenCodeChrome\logs"
@@ -475,15 +474,13 @@ if ($privateConfig -and $privateConfig.mcpServers) {
         # nvm 환경 포함하여 탐색 (host.js 전략과 동일)
         $wslOcCheck = wsl.exe bash -c '. "$HOME/.nvm/nvm.sh" 2>/dev/null; which opencode 2>/dev/null' 2>&1
         if ($LASTEXITCODE -eq 0 -and $wslOcCheck) {
-            $distros = (wsl.exe --list --quiet 2>&1) |
-                       Where-Object { $_ -match '\S' } |
-                       ForEach-Object { $_.Trim().TrimEnd([char]0) }
-            $defaultDistro = $distros | Select-Object -First 1
-            $wslHome = (wsl.exe -d $defaultDistro -e bash -c 'echo $HOME' 2>&1).Trim()
+            # wsl --list --quiet는 UTF-16LE 출력으로 distro명 깨짐 → WSL 내부 env var 사용
+            $defaultDistro = (wsl.exe bash -c 'echo $WSL_DISTRO_NAME' 2>&1).Trim()
+            $wslHome = (wsl.exe bash -c 'echo $HOME' 2>&1).Trim()
             if ($defaultDistro -and $wslHome) {
                 # Join-Path는 UNC 경로($포함)에서 오류 발생 → 직접 문자열 결합
                 $wslMcpJson = "\\wsl$\$defaultDistro" + $wslHome.Replace('/', '\') + "\.mcp.json"
-                Write-Host "  WSL2 .mcp.json 설정 ($defaultDistro): $wslMcpJson" -ForegroundColor Gray
+                Write-Host "  WSL2 .mcp.json ($defaultDistro): $wslMcpJson" -ForegroundColor Gray
                 Merge-McpJson -TargetPath $wslMcpJson -McpServers $privateConfig.mcpServers
             } else {
                 Write-Host "  WSL2 distro/home 감지 실패 - SKIP" -ForegroundColor Yellow
