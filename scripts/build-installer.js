@@ -45,13 +45,24 @@ try {
 const outExe = path.join(ROOT, `opencode-native-host-setup-v${version}.exe`);
 const nsiScript = path.join(ROOT, 'installer', 'installer.nsi');
 
-const cmd = [
+const args = [
   'makensis',
   `-DEXTENSION_ID=${extensionId}`,
   `-DAPP_VERSION=${version}`,
   `-DOUT_FILE=${outExe}`,
-  `"${nsiScript}"`
-].join(' ');
+];
+
+const privateConfigPath = path.resolve(ROOT, 'config.private.json');
+if (fs.existsSync(privateConfigPath)) {
+  console.log('[build] config.private.json found — will be bundled in installer');
+  args.push(`-DHAS_PRIVATE_CONFIG=1`);
+  args.push(`"-DPRIVATE_CONFIG_PATH=${privateConfigPath}"`);
+} else {
+  console.log('[build] config.private.json not found — MCP/proxy config will be skipped at install time');
+}
+
+args.push(`"${nsiScript}"`);
+const cmd = args.join(' ');
 
 console.log(`\n${cmd}\n`);
 execSync(cmd, { stdio: 'inherit', cwd: ROOT });

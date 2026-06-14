@@ -27,5 +27,8 @@ key/
 # environment variables
 .env
 
+# private installer config (MCP 서버 주소, 토큰 — 절대 커밋 금지)
+config.private.json
+
 # claude, opencode
 .claude/

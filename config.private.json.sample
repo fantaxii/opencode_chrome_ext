@@ -1,0 +1,23 @@
+{
+  "_comment": "이 파일을 config.private.json으로 복사 후 값을 채우세요. git에 커밋하지 마세요.",
+  "proxy": {
+    "http": "http://proxy.example.com:8080",
+    "https": "http://proxy.example.com:8080",
+    "noProxy": "localhost,127.0.0.1,*.internal.example.com"
+  },
+  "mcp": {
+    "mcpServers": {
+      "example-server": {
+        "type": "http",
+        "url": "http://your-mcp-server.internal/mcp"
+      },
+      "example-server-with-auth": {
+        "type": "http",
+        "url": "http://your-mcp-server.internal/mcp",
+        "headers": {
+          "Authorization": "Bearer your-token-here"
+        }
+      }
+    }
+  }
+}

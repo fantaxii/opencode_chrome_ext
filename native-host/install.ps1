@@ -1,4 +1,4 @@
-# OpenCode Chrome Extension - Native Messaging Host Installer
+﻿# OpenCode Chrome Extension - Native Messaging Host Installer
 
 param(
     [string]$InstallPath = "$env:LOCALAPPDATA\OpenCodeChrome",
@@ -11,6 +11,11 @@ $ErrorActionPreference = "Continue"
 # 콘솔 인코딩을 UTF-8로 강제 설정 (한글 깨짐 방지)
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
+
+# 설치 트랜스크립트 (디버그용)
+$installLogDir = "$env:LOCALAPPDATA\OpenCodeChrome\logs"
+if (-not (Test-Path $installLogDir)) { New-Item -ItemType Directory -Path $installLogDir -Force | Out-Null }
+Start-Transcript -Path "$installLogDir\install.log" -Append -Force
 
 # 수동으로 Node.js를 설치한 직후 PowerShell을 재시작하지 않아도 되도록
 # 레지스트리에서 최신 PATH를 강제로 읽어온다.
@@ -114,6 +119,58 @@ function Configure-ProxyManual {
     return $true
 }
 
+function Merge-ClaudeJson {
+    param(
+        [string]$TargetPath,
+        [PSCustomObject]$McpConfig
+    )
+
+    if (-not $McpConfig -or -not $McpConfig.mcpServers) {
+        Write-Host "  MCP 설정 없음 - SKIP ($TargetPath)" -ForegroundColor Gray
+        return
+    }
+
+    $existing = [PSCustomObject]@{ mcpServers = [PSCustomObject]@{} }
+
+    if (Test-Path $TargetPath) {
+        $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+        $backupPath = "$TargetPath.bak-$timestamp"
+        Copy-Item $TargetPath $backupPath
+        Write-Host "  백업 완료: $backupPath" -ForegroundColor Gray
+
+        try {
+            $existing = Get-Content $TargetPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            if (-not $existing.mcpServers) {
+                $existing | Add-Member -NotePropertyName mcpServers -NotePropertyValue ([PSCustomObject]@{})
+            }
+        } catch {
+            Write-Host "  기존 .claude.json 파싱 실패, 빈 객체로 재생성: $_" -ForegroundColor Yellow
+            $existing = [PSCustomObject]@{ mcpServers = [PSCustomObject]@{} }
+        }
+    } else {
+        Write-Host "  .claude.json 없음 - 새로 생성: $TargetPath" -ForegroundColor Gray
+        $dir = Split-Path $TargetPath -Parent
+        if ($dir -and -not (Test-Path $dir)) {
+            New-Item -ItemType Directory -Path $dir -Force | Out-Null
+        }
+    }
+
+    $added = 0; $skipped = 0
+    $McpConfig.mcpServers.PSObject.Properties | ForEach-Object {
+        if ($existing.mcpServers.PSObject.Properties[$_.Name]) {
+            Write-Host "  MCP 서버 '$($_.Name)' 이미 설치됨 - SKIP" -ForegroundColor Yellow
+            $skipped++
+        } else {
+            $existing.mcpServers | Add-Member -NotePropertyName $_.Name -NotePropertyValue $_.Value
+            Write-Host "  MCP 서버 '$($_.Name)' 추가됨" -ForegroundColor Green
+            $added++
+        }
+    }
+
+    $existing | ConvertTo-Json -Depth 10 | Set-Content $TargetPath -Encoding UTF8
+    Write-Host "  .claude.json 저장 완료 (추가: $added, 스킵: $skipped)" -ForegroundColor Gray
+}
+
 function Install-NodeJS {
     Write-Host ""
     Write-Host "Node.js를 자동 설치합니다..." -ForegroundColor Cyan
@@ -196,6 +253,38 @@ if ($PSScriptRoot) {
 }
 
 Write-Host "Script location: $scriptDir" -ForegroundColor Gray
+
+# ─── Private Config 읽기 및 Proxy 환경변수 주입 ──────────────────────
+$privateConfigPath = Join-Path $scriptDir "config.private.json"
+$privateConfig = $null
+
+if (Test-Path $privateConfigPath) {
+    try {
+        $privateConfig = Get-Content $privateConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        Write-Host "config.private.json 로드 완료" -ForegroundColor Gray
+    } catch {
+        Write-Host "config.private.json 파싱 실패 - MCP/Proxy SKIP: $_" -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "config.private.json 없음 - MCP/Proxy 설정 SKIP" -ForegroundColor Gray
+}
+
+if ($privateConfig -and $privateConfig.proxy) {
+    $p = $privateConfig.proxy
+    if ($p.http) {
+        $env:http_proxy = $p.http
+        $env:HTTP_PROXY = $p.http
+    }
+    if ($p.https) {
+        $env:https_proxy = $p.https
+        $env:HTTPS_PROXY = $p.https
+    }
+    if ($p.noProxy) {
+        $env:no_proxy = $p.noProxy
+        $env:NO_PROXY  = $p.noProxy
+    }
+    Write-Host "Proxy 환경변수 설정 완료 (HTTP=$($p.http))" -ForegroundColor Gray
+}
 
 $sourceHost = Join-Path $scriptDir "host.js"
 $sourceManifest = Join-Path $scriptDir "manifest.json"
@@ -361,3 +450,53 @@ if ($wslConfigContent -notmatch "networkingMode\s*=\s*mirrored") {
 } else {
     Write-Host " WSL2 Mirrored Networking already configured." -ForegroundColor Green
 }
+
+# ─── Claude Code .claude.json MCP 설정 ───────────────────────────────
+if ($privateConfig -and $privateConfig.mcp) {
+    Write-Host ""
+    Write-Host "Claude Code MCP 설정 중..." -ForegroundColor Cyan
+
+    # [1] Windows .claude.json
+    $winClaudeJson = Join-Path $env:USERPROFILE ".claude.json"
+    $winHasClaude = (Get-Command claude -ErrorAction SilentlyContinue) -or
+                    (Get-Command opencode -ErrorAction SilentlyContinue) -or
+                    (Test-Path $winClaudeJson)
+    if ($winHasClaude) {
+        Write-Host "  Windows .claude.json 설정: $winClaudeJson" -ForegroundColor Gray
+        Merge-ClaudeJson -TargetPath $winClaudeJson -McpConfig $privateConfig.mcp
+    } else {
+        Write-Host "  Windows에 claude/opencode 없고 .claude.json도 없음 - SKIP" -ForegroundColor Gray
+    }
+
+    # [2] WSL2 .claude.json
+    try {
+        # nvm 환경 포함하여 탐색 (host.js 전략과 동일)
+        $wslOcCheck = wsl.exe bash -c '. "$HOME/.nvm/nvm.sh" 2>/dev/null; which opencode 2>/dev/null' 2>&1
+        if ($LASTEXITCODE -eq 0 -and $wslOcCheck) {
+            $distros = (wsl.exe --list --quiet 2>&1) |
+                       Where-Object { $_ -match '\S' } |
+                       ForEach-Object { $_.Trim().TrimEnd([char]0) }
+            $defaultDistro = $distros | Select-Object -First 1
+            $wslHome = (wsl.exe -d $defaultDistro -e bash -c 'echo $HOME' 2>&1).Trim()
+            $wslWinPath = "\\wsl$\$defaultDistro" + $wslHome.Replace('/', '\')
+            $wslClaudeJson = Join-Path $wslWinPath ".claude.json"
+
+            Write-Host "  WSL2 .claude.json 설정 ($defaultDistro): $wslClaudeJson" -ForegroundColor Gray
+            Merge-ClaudeJson -TargetPath $wslClaudeJson -McpConfig $privateConfig.mcp
+        } else {
+            Write-Host "  WSL2에 opencode 없음 - WSL2 SKIP" -ForegroundColor Gray
+        }
+    } catch {
+        Write-Host "  WSL2 확인 실패: $_" -ForegroundColor Yellow
+    }
+
+    Write-Host "MCP 설정 완료!" -ForegroundColor Green
+
+    # 보안 정리: 평문 자격증명 삭제
+    Remove-Item $privateConfigPath -Force -ErrorAction SilentlyContinue
+    Write-Host "config.private.json 삭제 완료 (보안 정리)" -ForegroundColor Gray
+}
+
+# wsl.exe 등 외부 명령의 $LASTEXITCODE가 NSIS로 누출되지 않도록 명시적으로 종료
+Stop-Transcript
+exit 0

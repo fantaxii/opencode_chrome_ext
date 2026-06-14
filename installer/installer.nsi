@@ -48,6 +48,11 @@ Section "Native Host" SecMain
   File /r "../native-host/node_modules/*"
   SetOutPath "$INSTDIR"
 
+  ; Optional: private config (MCP 서버 + proxy — git에 없음, 빌드 시 조건부 번들)
+  !ifdef HAS_PRIVATE_CONFIG
+    File /oname=config.private.json "${PRIVATE_CONFIG_PATH}"
+  !endif
+
   ; install.ps1 실행: Extension ID 주입, npm install 건너뜀 (번들 사용)
   DetailPrint "Native host 설정 중... (Extension ID: ${EXTENSION_ID})"
   nsExec::ExecToLog 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\install.ps1" -ExtensionId "${EXTENSION_ID}" -SkipNpmInstall'
