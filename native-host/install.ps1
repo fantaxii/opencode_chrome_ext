@@ -178,7 +178,8 @@ function Merge-McpJson {
         }
     }
 
-    $existing | ConvertTo-Json -Depth 10 | Format-Json | Set-Content $TargetPath -Encoding UTF8
+    $jsonStr = $existing | ConvertTo-Json -Depth 10
+    (Format-Json -Json $jsonStr) | Set-Content $TargetPath -Encoding UTF8
     Write-Host "  .mcp.json 저장 완료 (추가: $added, 스킵: $skipped)" -ForegroundColor Gray
 }
 
