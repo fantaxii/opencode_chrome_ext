@@ -1,5 +1,12 @@
 # Changelog
 
+# [2.4.0](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.3.0...v2.4.0) (2026-06-14)
+
+
+### Features
+
+* NSIS 인스톨러에 MCP/Proxy private config 지원 추가 ([9a78365](https://github.com/fantaXII/opencode_chrome_ext/commit/9a78365b822aaeafe9298a26554fe51eba88e360))
+
 # [2.3.0](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.2.1...v2.3.0) (2026-06-13)
 
 
