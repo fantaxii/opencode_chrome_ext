@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.4.1](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.4.0...v2.4.1) (2026-06-14)
+
+
+### Bug Fixes
+
+* .mcp.json JSON 들여쓰기 2칸으로 정규화 ([12e9497](https://github.com/fantaXII/opencode_chrome_ext/commit/12e949722b4545556f802332814977e9270cb096))
+* .mcp.json 내용이 비어 있는 버그 수정 ([6674af0](https://github.com/fantaXII/opencode_chrome_ext/commit/6674af0c56a6624e42ef41edce3cd735bce34cbd))
+* build:all 순서 수정 — prebuild의 dist 삭제로 installer EXE 유실 방지 ([a714a74](https://github.com/fantaXII/opencode_chrome_ext/commit/a714a74940456798e47d33d54c8d6c86155c22f9))
+* config.private.json 포맷 통일 및 proxy 영구 저장, 보안 정리 버그 수정 ([2ac8189](https://github.com/fantaXII/opencode_chrome_ext/commit/2ac8189ca0082687f9204a07c329a2a9bec365a4))
+* MCP 설정 대상을 .claude.json에서 .mcp.json으로 변경 ([3a694b3](https://github.com/fantaXII/opencode_chrome_ext/commit/3a694b36593d34026b18fff63c0f1e87c516804a))
+* NO_PROXY 환경변수 기존 항목 보존하며 병합 (중복 제거) ([713dab4](https://github.com/fantaXII/opencode_chrome_ext/commit/713dab4dbb72bb4478faa1e516c2ec9f249d81ac))
+* WSL2 distro명 깨짐 수정 및 NSIS 한글 깨짐 수정 ([8f74011](https://github.com/fantaXII/opencode_chrome_ext/commit/8f74011d0697883825c36c804d879f6bab50c8b1))
+* 빈 .mcp.json 파일 읽기 시 null 체인 실패 수정 ([c674a37](https://github.com/fantaXII/opencode_chrome_ext/commit/c674a374131bc53d03a9bc833bde52c6f3fec2a3))
+
 # [2.4.0](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.3.0...v2.4.0) (2026-06-14)
 
 
