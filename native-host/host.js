@@ -102,9 +102,10 @@ async function findOpenCodePath() {
     fileLog('WARN', `findOpenCodePath: Not in Windows PATH - ${error.message}`);
   }
 
-  // 2순위: WSL (최대 3회 재시도, 2가지 전략)
+  // 2순위: WSL (최대 3회 재시도, 3가지 전략)
   diagnostic.wsl.checked = true;
   const wslStrategies = [
+    ['bash', '-c', 'test -x "$HOME/.opencode/bin/opencode" && echo "$HOME/.opencode/bin/opencode"'],
     ['bash', '-c', '. "$HOME/.nvm/nvm.sh" 2>/dev/null; which opencode 2>/dev/null'],
     ['bash', '-ilc', 'which opencode 2>/dev/null'],
   ];

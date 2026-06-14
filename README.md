@@ -674,18 +674,31 @@ npm install -g opencode@latest
 which opencode  # 예: /home/user/.nvm/versions/node/v24.x.x/bin/opencode
 ```
 
-**2단계: NVM PATH 로딩 확인**
+**2단계: PATH 로딩 확인**
 
-opencode가 NVM 경로에 있다면, `.bashrc`의 interactive 가드로 인해
-Windows Native Host에서 WSL PATH를 읽지 못할 수 있습니다.
+`.bashrc`의 interactive 가드(`case $- in *i*) ;; *) return;; esac`)로 인해
+Windows Native Host에서 WSL PATH를 읽지 못할 수 있습니다. host.js는 아래 3가지
+전략을 순서대로 시도합니다.
 
 ```bash
-# clean 환경에서 탐지 시뮬레이션
+# 전략 1: 공식 설치 스크립트 기본 경로 (가장 빠름, .bashrc 무관)
+env -i HOME=$HOME bash -c 'test -x "$HOME/.opencode/bin/opencode" && echo "$HOME/.opencode/bin/opencode"'
+
+# 전략 2: NVM 환경
 env -i HOME=$HOME PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
   bash -c '. "$HOME/.nvm/nvm.sh" 2>/dev/null; which opencode'
+
+# 전략 3: interactive login shell (.bashrc 전체 실행)
+bash -ilc 'which opencode'
 ```
 
-경로가 나오면 정상입니다. Native Host(host.js)의 탐지 전략과 동일한 방식입니다.
+경로가 나오면 정상입니다.
+
+> **참고**: 전략 3은 `.bashrc`를 전부 실행하므로, `.bashrc`에 `sudo` 호출이나
+> 무거운 초기화(conda/nvm 등)가 있으면 TTY 없는 `wsl.exe` 환경에서 15초
+> 타임아웃에 걸려 실패할 수 있습니다. 이 경우 `.bashrc`를 정리하거나,
+> opencode를 공식 설치 스크립트 기본 경로(`~/.opencode/bin`)에 두면
+> 전략 1에서 바로 탐지됩니다.
 
 **3단계: Native Messaging Host 재설치 확인**
 
