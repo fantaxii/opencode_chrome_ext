@@ -119,7 +119,7 @@ function Configure-ProxyManual {
     return $true
 }
 
-function Merge-ClaudeJson {
+function Merge-McpJson {
     param(
         [string]$TargetPath,
         [PSCustomObject]$McpServers
@@ -144,11 +144,11 @@ function Merge-ClaudeJson {
                 $existing | Add-Member -NotePropertyName mcpServers -NotePropertyValue ([PSCustomObject]@{})
             }
         } catch {
-            Write-Host "  기존 .claude.json 파싱 실패, 빈 객체로 재생성: $_" -ForegroundColor Yellow
+            Write-Host "  기존 .mcp.json 파싱 실패, 빈 객체로 재생성: $_" -ForegroundColor Yellow
             $existing = [PSCustomObject]@{ mcpServers = [PSCustomObject]@{} }
         }
     } else {
-        Write-Host "  .claude.json 없음 - 새로 생성: $TargetPath" -ForegroundColor Gray
+        Write-Host "  .mcp.json 없음 - 새로 생성: $TargetPath" -ForegroundColor Gray
         $dir = Split-Path $TargetPath -Parent
         if ($dir -and -not (Test-Path $dir)) {
             New-Item -ItemType Directory -Path $dir -Force | Out-Null
@@ -168,7 +168,7 @@ function Merge-ClaudeJson {
     }
 
     $existing | ConvertTo-Json -Depth 10 | Set-Content $TargetPath -Encoding UTF8
-    Write-Host "  .claude.json 저장 완료 (추가: $added, 스킵: $skipped)" -ForegroundColor Gray
+    Write-Host "  .mcp.json 저장 완료 (추가: $added, 스킵: $skipped)" -ForegroundColor Gray
 }
 
 function Install-NodeJS {
@@ -460,24 +460,17 @@ if ($wslConfigContent -notmatch "networkingMode\s*=\s*mirrored") {
     Write-Host " WSL2 Mirrored Networking already configured." -ForegroundColor Green
 }
 
-# ─── Claude Code .claude.json MCP 설정 ───────────────────────────────
+# ─── .mcp.json MCP 설정 ──────────────────────────────────────────────
 if ($privateConfig -and $privateConfig.mcpServers) {
     Write-Host ""
-    Write-Host "Claude Code MCP 설정 중..." -ForegroundColor Cyan
+    Write-Host "MCP 설정 중..." -ForegroundColor Cyan
 
-    # [1] Windows .claude.json
-    $winClaudeJson = Join-Path $env:USERPROFILE ".claude.json"
-    $winHasClaude = (Get-Command claude -ErrorAction SilentlyContinue) -or
-                    (Get-Command opencode -ErrorAction SilentlyContinue) -or
-                    (Test-Path $winClaudeJson)
-    if ($winHasClaude) {
-        Write-Host "  Windows .claude.json 설정: $winClaudeJson" -ForegroundColor Gray
-        Merge-ClaudeJson -TargetPath $winClaudeJson -McpServers $privateConfig.mcpServers
-    } else {
-        Write-Host "  Windows에 claude/opencode 없고 .claude.json도 없음 - SKIP" -ForegroundColor Gray
-    }
+    # [1] Windows %USERPROFILE%\.mcp.json
+    $winMcpJson = "$env:USERPROFILE\.mcp.json"
+    Write-Host "  Windows .mcp.json 설정: $winMcpJson" -ForegroundColor Gray
+    Merge-McpJson -TargetPath $winMcpJson -McpServers $privateConfig.mcpServers
 
-    # [2] WSL2 .claude.json
+    # [2] WSL2 ~/.mcp.json
     try {
         # nvm 환경 포함하여 탐색 (host.js 전략과 동일)
         $wslOcCheck = wsl.exe bash -c '. "$HOME/.nvm/nvm.sh" 2>/dev/null; which opencode 2>/dev/null' 2>&1
@@ -487,11 +480,14 @@ if ($privateConfig -and $privateConfig.mcpServers) {
                        ForEach-Object { $_.Trim().TrimEnd([char]0) }
             $defaultDistro = $distros | Select-Object -First 1
             $wslHome = (wsl.exe -d $defaultDistro -e bash -c 'echo $HOME' 2>&1).Trim()
-            $wslWinPath = "\\wsl$\$defaultDistro" + $wslHome.Replace('/', '\')
-            $wslClaudeJson = Join-Path $wslWinPath ".claude.json"
-
-            Write-Host "  WSL2 .claude.json 설정 ($defaultDistro): $wslClaudeJson" -ForegroundColor Gray
-            Merge-ClaudeJson -TargetPath $wslClaudeJson -McpServers $privateConfig.mcpServers
+            if ($defaultDistro -and $wslHome) {
+                # Join-Path는 UNC 경로($포함)에서 오류 발생 → 직접 문자열 결합
+                $wslMcpJson = "\\wsl$\$defaultDistro" + $wslHome.Replace('/', '\') + "\.mcp.json"
+                Write-Host "  WSL2 .mcp.json 설정 ($defaultDistro): $wslMcpJson" -ForegroundColor Gray
+                Merge-McpJson -TargetPath $wslMcpJson -McpServers $privateConfig.mcpServers
+            } else {
+                Write-Host "  WSL2 distro/home 감지 실패 - SKIP" -ForegroundColor Yellow
+            }
         } else {
             Write-Host "  WSL2에 opencode 없음 - WSL2 SKIP" -ForegroundColor Gray
         }
