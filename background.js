@@ -528,6 +528,13 @@ async function sendMessage(sessionId, message, tabInfo, onChunk, onComplete) {
       fullMessage = pageContext + message;
     }
 
+    // prompt 전송 전에 SSE 구독을 먼저 연결 (server.connected 또는 5초 타임아웃까지 대기)
+    // /global/event 는 연결 시점 이후 이벤트만 전달하므로, prompt 전송이 먼저
+    // 이루어지면 응답이 빠른 모델의 경우 message.part.* 이벤트를 놓칠 수 있음
+    const subscribeStart = Date.now();
+    await subscribeToEvents(sessionId, port, onChunk, onComplete);
+    debugLog('INFO', `SSE pre-connected before prompt - sessionId=${sessionId}, elapsedMs=${Date.now() - subscribeStart}`);
+
     const promptResponse = await fetch(
       `http://127.0.0.1:${port}/session/${sessionId}/prompt_async`,
       {
@@ -544,11 +551,36 @@ async function sendMessage(sessionId, message, tabInfo, onChunk, onComplete) {
       throw new Error(`메시지 전송 실패: ${promptResponse.status}`);
     }
     debugLog('INFO', `Prompt sent - sessionId=${sessionId}, status=${promptResponse.status}, model=${selectedModel ? `${selectedModel.providerID}/${selectedModel.modelID}` : 'default'}`);
-
-    subscribeToEvents(sessionId, port, onChunk, onComplete);
   } catch (error) {
     console.error('메시지 전송 오류:', error);
     throw error;
+  }
+}
+
+/**
+ * 세션의 마지막 assistant 메시지를 REST로 조회해 텍스트 파트를 추출
+ * SSE에서 message.part.* 이벤트를 놓쳤을 때 (idle/timeout 시 buffer가 빈 경우) 안전망으로 사용
+ */
+async function fetchFallbackContent(port, sessionId) {
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/session/${sessionId}/message`);
+    if (!res.ok) return { content: '', partTypes: [], lastMessageId: null };
+
+    const messages = await res.json();
+    const assistantMessages = (messages || []).filter(m => m?.info?.role === 'assistant');
+    const last = assistantMessages[assistantMessages.length - 1];
+    if (!last) return { content: '', partTypes: [], lastMessageId: null };
+
+    const parts = last.parts || [];
+    const partTypes = parts.map(p => p.type);
+    const content = parts
+      .filter(p => p.type === 'text' && p.text)
+      .map(p => p.text)
+      .join('');
+
+    return { content, partTypes, lastMessageId: last.info?.id || null };
+  } catch (e) {
+    return { content: '', partTypes: [], lastMessageId: null, error: e.message };
   }
 }
 
@@ -574,12 +606,26 @@ function subscribeToEvents(sessionId, port, onChunk, onComplete) {
     let timeoutId = null;
     function resetTimeout() {
       if (timeoutId) clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
+      timeoutId = setTimeout(async () => {
         if (!completed) {
           controller.abort();
           eventSources.delete(sessionId);
           debugLog('ERROR', `SSE timeout - sessionId=${sessionId}, assistantMessageId=${assistantMessageId || 'none'}, bufferLength=${buffer.length}`);
-          onComplete(buffer || '', '응답 시간 초과');
+
+          let finalContent = buffer || '';
+          let errMsg = '응답 시간 초과';
+          if (finalContent.length === 0) {
+            debugLog('WARN', `Empty buffer at timeout - falling back to REST /session/${sessionId}/message`);
+            const fallback = await fetchFallbackContent(port, sessionId);
+            if (fallback.content) {
+              debugLog('INFO', `REST fallback recovered ${fallback.content.length} chars - sessionId=${sessionId}, lastMessageId=${fallback.lastMessageId}, partTypes=${JSON.stringify(fallback.partTypes)}`);
+              finalContent = fallback.content;
+              errMsg = null;
+            } else {
+              debugLog('INFO', `REST fallback found no text parts - sessionId=${sessionId}, lastMessageId=${fallback.lastMessageId || 'none'}, partTypes=${JSON.stringify(fallback.partTypes)}`);
+            }
+          }
+          onComplete(finalContent, errMsg);
         }
       }, 180000);
     }
@@ -683,8 +729,12 @@ function subscribeToEvents(sessionId, port, onChunk, onComplete) {
                 }
                 case 'message.part.updated': {
                   const part = evt.properties?.part;
-                  if (part?.type === 'text' && part.messageID === assistantMessageId) {
-                    textPartIds.add(part.id);
+                  if (part?.messageID === assistantMessageId) {
+                    if (part.type === 'text') {
+                      textPartIds.add(part.id);
+                    } else {
+                      debugLog('INFO', `Non-text part for assistant message - sessionId=${sessionId}, messageId=${assistantMessageId}, partId=${part.id}, partType=${part.type}`);
+                    }
                   }
                   break;
                 }
@@ -703,7 +753,19 @@ function subscribeToEvents(sessionId, port, onChunk, onComplete) {
                   controller.abort();
                   eventSources.delete(sessionId);
                   debugLog('INFO', `Session idle - sessionId=${sessionId}, assistantMessageId=${assistantMessageId || 'none'}, textParts=${textPartIds.size}, bufferLength=${buffer.length}`);
-                  onComplete(buffer);
+
+                  let finalContent = buffer;
+                  if (buffer.length === 0) {
+                    debugLog('WARN', `Empty buffer at idle - falling back to REST /session/${sessionId}/message`);
+                    const fallback = await fetchFallbackContent(port, sessionId);
+                    if (fallback.content) {
+                      debugLog('INFO', `REST fallback recovered ${fallback.content.length} chars - sessionId=${sessionId}, lastMessageId=${fallback.lastMessageId}, partTypes=${JSON.stringify(fallback.partTypes)}`);
+                      finalContent = fallback.content;
+                    } else {
+                      debugLog('INFO', `REST fallback found no text parts - sessionId=${sessionId}, lastMessageId=${fallback.lastMessageId || 'none'}, partTypes=${JSON.stringify(fallback.partTypes)}`);
+                    }
+                  }
+                  onComplete(finalContent);
                   return;
                 }
                 case 'session.error': {
@@ -722,6 +784,7 @@ function subscribeToEvents(sessionId, port, onChunk, onComplete) {
               }
             } catch (e) {
               console.error('SSE 파싱 오류:', e, sseData);
+              debugLog('ERROR', `SSE parse error - sessionId=${sessionId}, error=${e.message}`);
             }
           }
         }
