@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.3](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.4.2...v2.4.3) (2026-06-15)
+
+
+### Bug Fixes
+
+* SSE 응답 텍스트 누락(textParts=0, bufferLength=0) 문제 수정 ([45cd006](https://github.com/fantaXII/opencode_chrome_ext/commit/45cd00627196b0eff69bda3552817709ea6820fd))
+
 ## [2.4.2](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.4.1...v2.4.2) (2026-06-14)
 
 
