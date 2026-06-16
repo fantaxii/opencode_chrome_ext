@@ -139,7 +139,7 @@
     currentSessionId = null;
     isLoading = false;
     loadingIndicator.classList.add('hidden');
-    sendBtn.disabled = !messageInput.value.trim();
+    sendBtn.disabled = true; // 세션 준비 완료 전까지 전송 차단
 
     try {
       const result = await sendMessageToBackground('get-tab-session', {
@@ -155,6 +155,9 @@
     } catch (e) {
       console.error('세션 초기화 실패:', e);
     }
+
+    // 세션 준비 완료 후 입력 내용이 있으면 전송 버튼 활성화
+    sendBtn.disabled = !messageInput.value.trim();
 
     try {
       const { pendingContextText } = await chrome.storage.local.get('pendingContextText');

@@ -78,6 +78,12 @@ chrome.storage.session.get(['tabSessions', 'activeTabs', 'tabLastShownInfo', 'cu
   if (data.activeTabs) activeTabs = new Set(data.activeTabs);
   if (data.tabLastShownInfo) tabLastShownInfo = new Map(data.tabLastShownInfo);
   if (data.currentActiveTabId) currentActiveTabId = data.currentActiveTabId;
+
+  // Fix 2: 활성 세션이 있으면 SW 재시작 후 서버를 즉시 초기화 (30초 idle timeout으로 SW가 재시작된 경우 빠른 복구)
+  if (tabSessions.size > 0) {
+    debugLog('INFO', `Service Worker restarted with ${tabSessions.size} active session(s), proactively ensuring server...`);
+    ensureOpenCodeServer().catch(() => {});
+  }
 }).catch(() => {});
 
 debugLog('INFO', `Service Worker started - ${new Date().toISOString()}`);
@@ -144,10 +150,14 @@ chrome.webNavigation.onHistoryStateUpdated.addListener((details) => {
 async function checkServerHealth(port) {
   console.log(`[checkServerHealth] 포트 ${port} 상태 체크 중...`);
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1500);
     const response = await fetch(`http://127.0.0.1:${port}/global/health`, {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal
     });
+    clearTimeout(timeoutId);
     console.log(`[checkServerHealth] 포트 ${port} 응답: status=${response.status}, ok=${response.ok}`);
     if (response.ok) {
       const data = await response.json();
@@ -239,10 +249,18 @@ async function waitForServer(timeout = SERVER_START_TIMEOUT) {
   return null;
 }
 
+// 진행 중인 ensureOpenCodeServer() 호출을 공유해 레이스 컨디션 방지
+let _ensureServerPromise = null;
+
 /**
  * OpenCode 서버 초기화
  */
 async function ensureOpenCodeServer() {
+  if (_ensureServerPromise) {
+    console.log(`[ensureOpenCodeServer] 진행 중인 확인 작업에 합류`);
+    return _ensureServerPromise;
+  }
+
   if (serverState.checking) {
     const knownPort = serverState.available ? serverState.port : null;
     console.log(`[ensureOpenCodeServer] 이미 checking 중입니다. 기존 포트 ${knownPort} 반환`);
@@ -252,6 +270,7 @@ async function ensureOpenCodeServer() {
   serverState.checking = true;
   console.log(`[ensureOpenCodeServer] checking=true - 서버 확인 시작`);
 
+  _ensureServerPromise = (async () => {
   try {
     let port = null;
 
@@ -296,8 +315,12 @@ async function ensureOpenCodeServer() {
     return null;
   } finally {
     serverState.checking = false;
+    _ensureServerPromise = null;
     console.log(`[ensureOpenCodeServer] checking=false - 작업 완료`);
   }
+  })();
+
+  return _ensureServerPromise;
 }
 
 /**
@@ -308,10 +331,20 @@ async function periodicServerCheck() {
   const port = await findAvailablePort();
   console.log(`[periodicServerCheck] findAvailablePort 결과: port=${port}, 기존 serverState.port=${serverState.port}`);
   if (port !== serverState.port) {
+    const wasAvailable = serverState.available;
     console.log(`[periodicServerCheck] 서버 포트 변경 감지! ${serverState.port} → ${port}`);
     serverState.port = port;
     serverState.available = !!port;
     console.log(`[periodicServerCheck] 상태 업데이트 완료 - port=${port}, available=${serverState.available}`);
+
+    // Fix 1: 서버가 다운됐으면 즉시 자동 재시작 시도
+    if (wasAvailable && !port) {
+      debugLog('INFO', 'Server: periodic check detected server went down, attempting auto-restart...');
+      ensureOpenCodeServer().catch(() => {});
+    } else if (!wasAvailable && port) {
+      // Fix 3: 서버 복구도 debugLog로 기록
+      debugLog('INFO', `Server: periodic check detected server came up on port ${port}`);
+    }
   } else {
     console.log(`[periodicServerCheck] 포트 변경 없음 (${port})`);
   }
