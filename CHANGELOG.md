@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.4](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.4.3...v2.4.4) (2026-06-16)
+
+
+### Bug Fixes
+
+* opencode 서버 다운/재시작 시 자동 복구 및 레이스 컨디션 수정 ([8de5781](https://github.com/fantaXII/opencode_chrome_ext/commit/8de57814b76bb6c6ab85b23faef2cadf7dd49152))
+
 ## [2.4.3](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.4.2...v2.4.3) (2026-06-15)
 
 
