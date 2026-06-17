@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.5](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.4.4...v2.4.5) (2026-06-17)
+
+
+### Bug Fixes
+
+* install.ps1 프록시 환경 Node.js 자동 설치 실패 수정 ([776343b](https://github.com/fantaXII/opencode_chrome_ext/commit/776343bf850ea917413e47b50d70687b0ebdf951))
+
 ## [2.4.4](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.4.3...v2.4.4) (2026-06-16)
 
 
