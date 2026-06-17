@@ -57,17 +57,21 @@ function Set-ProxyCredentials {
 }
 
 function Configure-Proxy {
-    # 1순위: 시스템 프록시 + 현재 Windows 로그인 자격증명으로 자동 시도
-    $systemProxy = [System.Net.WebRequest]::GetSystemWebProxy()
-    $systemProxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredentials
-    [System.Net.WebRequest]::DefaultWebProxy = $systemProxy
-    Write-Host "  시스템 프록시 + Windows 자격증명 적용" -ForegroundColor Gray
-
-    # http_proxy / https_proxy 환경 변수가 이미 설정돼 있으면 npm 등에도 전달
-    $existingProxy = if ($env:https_proxy) { $env:https_proxy } elseif ($env:http_proxy) { $env:http_proxy } else { $null }
-    if ($existingProxy) {
-        Write-Host "  기존 환경 변수 프록시 감지: $existingProxy" -ForegroundColor Gray
-        Apply-ProxyEnvVars -ProxyUri $existingProxy
+    # 환경변수에 프록시 URL이 있으면 명시적 WebProxy 객체 생성
+    # GetSystemWebProxy()는 WinINet(IE) 설정을 읽는데 실제 프록시 URL과 다를 수 있어
+    # 명시적 URL이 NTLM/Kerberos 자격증명 전달에 더 확실함
+    $proxyUri = if ($env:https_proxy) { $env:https_proxy } elseif ($env:http_proxy) { $env:http_proxy } else { $null }
+    if ($proxyUri) {
+        $webProxy = New-Object System.Net.WebProxy($proxyUri)
+        $webProxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredentials
+        [System.Net.WebRequest]::DefaultWebProxy = $webProxy
+        Write-Host "  명시적 프록시 설정: $proxyUri + Windows 자격증명" -ForegroundColor Gray
+    } else {
+        # 환경변수 없으면 WinINet 시스템 프록시 fallback
+        $systemProxy = [System.Net.WebRequest]::GetSystemWebProxy()
+        $systemProxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredentials
+        [System.Net.WebRequest]::DefaultWebProxy = $systemProxy
+        Write-Host "  시스템 프록시 + Windows 자격증명 적용" -ForegroundColor Gray
     }
 }
 
@@ -90,16 +94,46 @@ function Apply-NpmProxy {
     }
 }
 
+function Read-HostSafe {
+    param([string]$Prompt, [switch]$AsSecureString)
+    # Start-Transcript 활성화 중 Read-Host 가 UnauthorizedAccessException을 던지는
+    # PowerShell 5.1 버그 우회 — Console.ReadLine() 으로 fallback
+    try {
+        if ($AsSecureString) {
+            return Read-Host $Prompt -AsSecureString
+        }
+        return Read-Host $Prompt
+    } catch {
+        Write-Host $Prompt -NoNewline
+        if ($AsSecureString) {
+            # 보안 입력: 문자를 숨기고 SecureString 반환
+            $ss = New-Object System.Security.SecureString
+            while ($true) {
+                $key = [System.Console]::ReadKey($true)
+                if ($key.Key -eq 'Enter') { Write-Host ""; break }
+                if ($key.Key -eq 'Backspace') {
+                    if ($ss.Length -gt 0) { $ss.RemoveAt($ss.Length - 1); Write-Host "`b `b" -NoNewline }
+                } else {
+                    $ss.AppendChar($key.KeyChar); Write-Host "*" -NoNewline
+                }
+            }
+            return $ss
+        }
+        $line = [System.Console]::ReadLine()
+        return $line
+    }
+}
+
 function Configure-ProxyManual {
     Write-Host ""
     Write-Host "  프록시 인증이 필요합니다. 프록시 정보를 입력하세요." -ForegroundColor Yellow
     Write-Host "  (프록시를 사용하지 않으면 Enter를 누르세요)" -ForegroundColor Gray
-    $proxyUri = Read-Host "  프록시 주소 (예: http://proxy.company.com:8080)"
+    $proxyUri = Read-HostSafe "  프록시 주소 (예: http://proxy.company.com:8080): "
     if ([string]::IsNullOrWhiteSpace($proxyUri)) { return $false }
 
-    $proxyUser = Read-Host "  프록시 사용자명 (없으면 Enter)"
+    $proxyUser = Read-HostSafe "  프록시 사용자명 (없으면 Enter): "
     if (-not [string]::IsNullOrWhiteSpace($proxyUser)) {
-        $proxyPass = Read-Host "  프록시 비밀번호" -AsSecureString
+        $proxyPass = Read-HostSafe "  프록시 비밀번호" -AsSecureString
         $cred = New-Object System.Net.NetworkCredential($proxyUser, $proxyPass)
         # 자격증명을 URL에 인코딩해 환경 변수에도 포함 (user:pass@host 형식)
         $plainPass = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto(
@@ -248,7 +282,22 @@ function Install-NodeJS {
             $msiPath = Join-Path $env:TEMP "node-installer.msi"
 
             Write-Host "  다운로드 중: Node.js $version ($arch)..." -ForegroundColor Gray
-            Invoke-WebRequest -Uri $msiUrl -OutFile $msiPath -TimeoutSec 300 -UseDefaultCredentials
+            $downloaded = $false
+
+            # BITS 1순위: WinHTTP 스택 사용 → OS 레벨에서 NTLM/Kerberos 인증 자동 처리
+            # (Invoke-WebRequest의 .NET HttpWebRequest보다 사내 프록시 통과율이 높음)
+            try {
+                Import-Module BitsTransfer -ErrorAction Stop
+                Start-BitsTransfer -Source $msiUrl -Destination $msiPath -ErrorAction Stop
+                $downloaded = $true
+                Write-Host "  다운로드 완료 (BITS)" -ForegroundColor Gray
+            } catch {
+                Write-Host "  BITS 실패, Invoke-WebRequest 시도: $($_.Exception.Message)" -ForegroundColor Yellow
+            }
+
+            if (-not $downloaded) {
+                Invoke-WebRequest -Uri $msiUrl -OutFile $msiPath -TimeoutSec 300 -UseDefaultCredentials
+            }
 
             Write-Host "  설치 중 (자동 설치)..." -ForegroundColor Gray
             $proc = Start-Process msiexec.exe -ArgumentList "/i `"$msiPath`" /quiet /norestart" -Wait -PassThru
@@ -345,7 +394,10 @@ if (-not (Test-Path $nativeHostDir)) {
 }
 
 try {
-    Copy-Item -Path $sourceHost -Destination $nativeHostDir -Force
+    $destHostJs = Join-Path $nativeHostDir (Split-Path $sourceHost -Leaf)
+    if ((Resolve-Path $sourceHost -ErrorAction SilentlyContinue).Path -ne (Resolve-Path $destHostJs -ErrorAction SilentlyContinue).Path) {
+        Copy-Item -Path $sourceHost -Destination $nativeHostDir -Force
+    }
     Write-Host "   host.js installed" -ForegroundColor Gray
 } catch {
     Write-Host "ERROR: Failed to copy host.js - $($_.Exception.Message)" -ForegroundColor Red
@@ -458,7 +510,7 @@ if ($wslConfigContent -notmatch "networkingMode\s*=\s*mirrored") {
     Write-Host " ⚠️  WARNING: All running WSL sessions will be closed." -ForegroundColor Yellow
     Write-Host "     Please save your work first." -ForegroundColor Yellow
     Write-Host "─────────────────────────────────────────────────" -ForegroundColor Cyan
-    $confirm = Read-Host " Auto-configure and restart WSL? [Y/n]"
+    $confirm = Read-HostSafe " Auto-configure and restart WSL? [Y/n]: "
 
     if ($confirm -ne 'n' -and $confirm -ne 'N') {
         # Add networkingMode=mirrored to [wsl2] section
