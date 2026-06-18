@@ -530,6 +530,27 @@ async function sendMessage(sessionId, message, tabInfo, onChunk, onComplete) {
     throw new Error('OpenCode 서버 연결 실패');
   }
 
+  if (!selectedModel) {
+    await syncModelFromServer(port);
+    if (!selectedModel) {
+      const models = await getAvailableModels();
+      if (models.length > 0 && models[0].models) {
+        const provider = models[0];
+        const firstModel = Array.isArray(provider.models)
+          ? provider.models[0]
+          : Object.values(provider.models)[0];
+        if (firstModel) {
+          selectedModel = { providerID: provider.id, modelID: firstModel.id || firstModel.name };
+          chrome.storage.local.set({ selectedModel });
+          debugLog('INFO', `Auto-selected model before send: ${selectedModel.providerID}/${selectedModel.modelID}`);
+        }
+      }
+      if (!selectedModel) {
+        throw new Error('사용 가능한 모델이 없습니다. OpenCode에서 AI 제공자 API 키를 설정해 주세요.');
+      }
+    }
+  }
+
   try {
     const workingDir = await getWorkingDirectory();
     const headers = { 'Content-Type': 'application/json' };
@@ -580,8 +601,10 @@ async function sendMessage(sessionId, message, tabInfo, onChunk, onComplete) {
       }
     );
     if (promptResponse.status !== 204 && promptResponse.status !== 202 && !promptResponse.ok) {
-      debugLog('ERROR', `REST /prompt failed - status=${promptResponse.status}, sessionId=${sessionId}`);
-      throw new Error(`메시지 전송 실패: ${promptResponse.status}`);
+      let errorBody = '';
+      try { errorBody = await promptResponse.text(); } catch (_) {}
+      debugLog('ERROR', `REST /prompt failed - status=${promptResponse.status}, sessionId=${sessionId}, body=${errorBody}`);
+      throw new Error(`메시지 전송 실패: ${promptResponse.status} - ${errorBody}`);
     }
     debugLog('INFO', `Prompt sent - sessionId=${sessionId}, status=${promptResponse.status}, model=${selectedModel ? `${selectedModel.providerID}/${selectedModel.modelID}` : 'default'}`);
   } catch (error) {
