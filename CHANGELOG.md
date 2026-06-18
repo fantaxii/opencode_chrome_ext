@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.6](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.4.5...v2.4.6) (2026-06-18)
+
+
+### Bug Fixes
+
+* 모델 미설정 시 전송 실패 및 400 에러 원인 불명 문제 수정 ([5f1a8a2](https://github.com/fantaXII/opencode_chrome_ext/commit/5f1a8a2132bcfba8f9fc2f6a65f6006bcf6d31fd))
+
 ## [2.4.5](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.4.4...v2.4.5) (2026-06-17)
 
 
