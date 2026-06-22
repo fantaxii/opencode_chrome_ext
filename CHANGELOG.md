@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.7](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.4.6...v2.4.7) (2026-06-22)
+
+
+### Bug Fixes
+
+* HTTP 400 세션 만료 시 자동 복구 및 에러 본문 로깅 추가 ([3420666](https://github.com/fantaXII/opencode_chrome_ext/commit/3420666cd05dd35ebdee2d7ab5f8e3f62fa88211))
+
 ## [2.4.6](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.4.5...v2.4.6) (2026-06-18)
 
 
