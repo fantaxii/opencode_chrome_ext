@@ -601,10 +601,9 @@ async function sendMessage(sessionId, message, tabInfo, onChunk, onComplete) {
       }
     );
     if (promptResponse.status !== 204 && promptResponse.status !== 202 && !promptResponse.ok) {
-      let errorBody = '';
-      try { errorBody = await promptResponse.text(); } catch (_) {}
-      debugLog('ERROR', `REST /prompt failed - status=${promptResponse.status}, sessionId=${sessionId}, body=${errorBody}`);
-      throw new Error(`메시지 전송 실패: ${promptResponse.status} - ${errorBody}`);
+      const body = await promptResponse.text().catch(() => '');
+      debugLog('ERROR', `REST /prompt failed - status=${promptResponse.status}, body=${body}, sessionId=${sessionId}`);
+      throw new Error(`메시지 전송 실패: ${promptResponse.status} - ${body}`);
     }
     debugLog('INFO', `Prompt sent - sessionId=${sessionId}, status=${promptResponse.status}, model=${selectedModel ? `${selectedModel.providerID}/${selectedModel.modelID}` : 'default'}`);
   } catch (error) {
@@ -999,7 +998,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
         }
 
-        case 'send-message':
+        case 'send-message': {
           if (!sessions.has(message.sessionId)) {
             const recoveredPort = await ensureOpenCodeServer();
             if (recoveredPort) {
@@ -1011,28 +1010,57 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             }
           }
           const tabInfo = await getCurrentTabInfo();
-          await sendMessage(
-            message.sessionId,
-            message.message,
-            tabInfo,
-            (chunk) => {
-              chrome.runtime.sendMessage({
-                action: 'message-chunk',
-                sessionId: message.sessionId,
-                chunk: chunk
-              }).catch(() => {});
-            },
-            (final, error) => {
-              chrome.runtime.sendMessage({
-                action: 'message-complete',
-                sessionId: message.sessionId,
-                content: final,
-                error: error
-              });
+          let replacedSessionId = null;
+
+          const doSendMessage = async (sid) => {
+            await sendMessage(
+              sid,
+              message.message,
+              tabInfo,
+              (chunk) => {
+                chrome.runtime.sendMessage({
+                  action: 'message-chunk',
+                  sessionId: message.sessionId,
+                  chunk: chunk
+                }).catch(() => {});
+              },
+              (final, error) => {
+                chrome.runtime.sendMessage({
+                  action: 'message-complete',
+                  sessionId: message.sessionId,
+                  content: final,
+                  error: error,
+                  ...(replacedSessionId && { newSessionId: replacedSessionId })
+                });
+              }
+            );
+          };
+
+          try {
+            await doSendMessage(message.sessionId);
+          } catch (err) {
+            if (err.message && err.message.includes('400')) {
+              const oldCtrl = eventSources.get(message.sessionId);
+              if (oldCtrl) { oldCtrl.abort(); eventSources.delete(message.sessionId); }
+              sessions.delete(message.sessionId);
+
+              debugLog('INFO', `Session stale (400), recreating - oldSessionId=${message.sessionId}`);
+              const newId = await createSession('New Chat');
+              replacedSessionId = newId;
+
+              for (const [tabId, sid] of tabSessions) {
+                if (sid === message.sessionId) { tabSessions.set(tabId, newId); break; }
+              }
+              persistState();
+
+              await doSendMessage(newId);
+            } else {
+              throw err;
             }
-          );
+          }
           sendResponse({ success: true });
           break;
+        }
 
         case 'has-tab-session':
           sendResponse({ has: tabSessions.has(message.tabId) });

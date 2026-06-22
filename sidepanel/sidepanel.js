@@ -1097,6 +1097,9 @@
       defaultWorkingDir = message.directory;
       updateWorkingFolderDisplay(message.directory, true);
     } else if (message.action === 'message-complete' && message.sessionId === currentSessionId) {
+      if (message.newSessionId) {
+        currentSessionId = message.newSessionId;
+      }
       setLoadingState(false);
 
       if (message.error) {
