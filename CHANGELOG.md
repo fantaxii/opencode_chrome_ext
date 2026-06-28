@@ -1,5 +1,12 @@
 # Changelog
 
+# [2.5.0](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.4.7...v2.5.0) (2026-06-28)
+
+
+### Features
+
+* Native Host 미설치 감지 및 설치 가이드 화면 추가 ([132b416](https://github.com/fantaXII/opencode_chrome_ext/commit/132b416ed877a1955ee054f68976d2ef9e230613))
+
 ## [2.4.7](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.4.6...v2.4.7) (2026-06-22)
 
 
