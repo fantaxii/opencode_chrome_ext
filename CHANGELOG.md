@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.3](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.5.2...v2.5.3) (2026-06-28)
+
+
+### Bug Fixes
+
+* debugLog race condition 수정 및 Extension ID 관리 방식 개선 ([1ea09a1](https://github.com/fantaXII/opencode_chrome_ext/commit/1ea09a171b4e694a58a447d04d52cd35144366b3))
+
 ## [2.5.2](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.5.1...v2.5.2) (2026-06-28)
 
 
