@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.1](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.5.0...v2.5.1) (2026-06-28)
+
+
+### Bug Fixes
+
+* build-installer .exe 출력 경로를 루트로 수정 ([3a326d1](https://github.com/fantaXII/opencode_chrome_ext/commit/3a326d1da7cd20a4662f2821c3c484b14d774a5b))
+
 # [2.5.0](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.4.7...v2.5.0) (2026-06-28)
 
 
