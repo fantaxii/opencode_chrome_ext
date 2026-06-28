@@ -27,6 +27,10 @@
   const mcpBtn = document.getElementById('mcp-btn');
   const mcpDropdown = document.getElementById('mcp-dropdown');
 
+  const nativeHostGuide = document.getElementById('native-host-guide');
+  const guideDownloadBtn = document.getElementById('guide-download-btn');
+  const guideRetryBtn = document.getElementById('guide-retry-btn');
+
   let currentSessionId = null;
   let currentTabId = null;
   let isLoading = false;
@@ -52,12 +56,15 @@
       const serverState = await sendMessageToBackground('init-server');
 
       if (serverState.success && serverState.available) {
+        hideNativeHostGuide();
         updateConnectionStatus('connected');
         await loadModels();
         await loadCommandCatalog();
         await loadAgents();
         await loadMcpStatus();
         if (!currentWorkingDir) await loadWorkingDirectory();
+      } else if (serverState.reason === 'native-host-missing') {
+        showNativeHostGuide();
       } else {
         updateConnectionStatus('disconnected');
       }
@@ -789,6 +796,23 @@
   }
 
   retryBtn.addEventListener('click', () => {
+    init();
+  });
+
+  function showNativeHostGuide() {
+    const { version } = chrome.runtime.getManifest();
+    guideDownloadBtn.href = `https://github.com/fantaXII/opencode_chrome_ext/releases/latest/download/opencode-native-host-setup-v${version}.exe`;
+    nativeHostGuide.classList.remove('hidden');
+    updateConnectionStatus('disconnected');
+    connectingIndicator.classList.add('hidden');
+  }
+
+  function hideNativeHostGuide() {
+    nativeHostGuide.classList.add('hidden');
+  }
+
+  guideRetryBtn.addEventListener('click', () => {
+    hideNativeHostGuide();
     init();
   });
 

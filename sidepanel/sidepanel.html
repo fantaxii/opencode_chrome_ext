@@ -95,6 +95,34 @@
     </div>
   </div>
 
+  <div id="native-host-guide" class="native-host-guide hidden">
+    <div class="guide-content">
+      <div class="guide-icon">
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="48" height="48" rx="12" fill="var(--accent)" opacity="0.15"/>
+          <path d="M24 10v16M24 34v4" stroke="var(--accent)" stroke-width="3" stroke-linecap="round"/>
+          <circle cx="24" cy="38" r="2" fill="var(--accent)"/>
+        </svg>
+      </div>
+      <h2 class="guide-title">Native Host 설치 필요</h2>
+      <p class="guide-desc">Chrome 확장과 OpenCode를 연결하는<br>Native Host 프로그램이 필요합니다.</p>
+
+      <ol class="guide-steps">
+        <li>아래 버튼으로 인스톨러를 다운로드합니다</li>
+        <li><code>.exe</code> 파일을 실행합니다</li>
+        <li>SmartScreen 경고 → <strong>추가 정보</strong> → <strong>실행</strong> 클릭</li>
+        <li>설치 완료 후 아래 <strong>다시 연결</strong> 버튼을 누릅니다</li>
+      </ol>
+
+      <div class="guide-internal-note">
+        🏢 <strong>사내 사용자:</strong> <code>config.private.json</code> 파일을 <code>.exe</code>와 같은 폴더에 두고 실행하세요. (proxy/MCP 자동 설정)
+      </div>
+
+      <a id="guide-download-btn" class="guide-download-btn" href="#" target="_blank">⬇ 인스톨러 다운로드</a>
+      <button id="guide-retry-btn" class="guide-retry-btn">↺ 다시 연결</button>
+    </div>
+  </div>
+
   <script src="marked.min.js"></script>
   <script src="sidepanel.js"></script>
 </body>

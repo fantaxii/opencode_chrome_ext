@@ -49,6 +49,8 @@ let serverState = {
   checking: false
 };
 
+let nativeHostMissingFlag = false;
+
 let sessions = new Map();
 let tabSessions = new Map(); // tabId → sessionId
 let activeTabs = new Set();  // 사용자가 명시적으로 extension을 연 tabId 목록
@@ -214,6 +216,10 @@ async function startServerWithNativeMessaging(preferredPort = DEFAULT_PORT) {
       // Chrome 레벨 Native Messaging 에러 (연결 자체 실패)
       debugLog('ERROR', `NativeMsg: Chrome error attempt ${attempt}/${MAX_RETRIES} - ${error.message}`);
       console.error(`[startServerWithNativeMessaging] 시도 ${attempt} 실패:`, error);
+      if (error.message && error.message.includes('native messaging host not found')) {
+        nativeHostMissingFlag = true;
+        return null;
+      }
     }
 
     if (attempt < MAX_RETRIES) {
@@ -979,7 +985,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               }
             }
           }
-          sendResponse({ success: !!port, available: !!port, port, version: serverState.version });
+          const reason = !port && nativeHostMissingFlag ? 'native-host-missing' : undefined;
+          nativeHostMissingFlag = false;
+          sendResponse({ success: !!port, available: !!port, port, version: serverState.version, reason });
           break;
 
         case 'create-session':
