@@ -7,8 +7,8 @@
     "release": true,
     "releaseName": "v${version}",
     "assets": [
-      "dist/opencode-chrome-ext-${version}-webstore.zip",
-      "opencode-native-host-setup-${version}.exe"
+      "dist/opencode-chrome-ext-*-webstore.zip",
+      "opencode-native-host-setup-*.exe"
     ]
   },
   "npm": {
@@ -21,6 +21,6 @@
     }
   },
   "hooks": {
-    "after:bump": "node -e \"const fs=require('fs');const m=JSON.parse(fs.readFileSync('manifest.json','utf8'));m.version='${version}';fs.writeFileSync('manifest.json',JSON.stringify(m,null,2)+'\\n');\" && yarn build:installer && yarn build"
+    "after:bump": "node -e \"const fs=require('fs');const m=JSON.parse(fs.readFileSync('manifest.json','utf8'));m.version='${version}';fs.writeFileSync('manifest.json',JSON.stringify(m,null,2)+'\\n');\" && rm -f opencode-native-host-setup-*.exe && yarn build:installer && yarn build"
   }
 }
