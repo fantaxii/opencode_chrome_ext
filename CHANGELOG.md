@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.2](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.5.1...v2.5.2) (2026-06-28)
+
+
+### Bug Fixes
+
+* release assets 글로벌 패턴 및 빌드 전 .exe 정리 수정 ([06064bb](https://github.com/fantaXII/opencode_chrome_ext/commit/06064bbb9a51e7b8bb52a98084d6984d10541a40))
+
 ## [2.5.1](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.5.0...v2.5.1) (2026-06-28)
 
 
