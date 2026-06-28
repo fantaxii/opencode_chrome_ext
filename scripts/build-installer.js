@@ -16,16 +16,21 @@ function calcExtensionId(base64Key) {
   return id;
 }
 
+const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.json'), 'utf8'));
-const { version, key } = manifest;
+const { version } = manifest;
 
-if (!key) {
-  console.error('ERROR: manifest.json에 key 필드가 없습니다.');
-  console.error('       node scripts/set-webstore-key.js <base64-public-key> 를 먼저 실행하세요.');
+let extensionId = pkg.extensionId;
+if (extensionId) {
+  console.log('Extension ID source: package.json');
+} else if (manifest.key) {
+  extensionId = calcExtensionId(manifest.key);
+  console.log('Extension ID source: manifest.json key (계산값)');
+} else {
+  console.error('ERROR: package.json에 extensionId가 없고 manifest.json에 key도 없습니다.');
+  console.error('       package.json에 "extensionId": "<실제 Extension ID>" 를 추가하세요.');
   process.exit(1);
 }
-
-const extensionId = calcExtensionId(key);
 console.log(`Version      : ${version}`);
 console.log(`Extension ID : ${extensionId}`);
 

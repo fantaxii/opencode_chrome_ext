@@ -25,17 +25,24 @@ const SSE_RECONNECT_DELAY = 2000;
 const DEBUG_LOG_KEY = 'debugLogs';
 const MAX_DEBUG_ENTRIES = 200;
 
+const _debugQueue = [];
+let _debugFlushPending = false;
+
 function debugLog(level, message) {
-  const entry = { ts: new Date().toISOString(), level, msg: String(message) };
-  (async () => {
+  _debugQueue.push({ ts: new Date().toISOString(), level, msg: String(message) });
+  if (_debugFlushPending) return;
+  _debugFlushPending = true;
+  setTimeout(async () => {
+    _debugFlushPending = false;
+    const entries = _debugQueue.splice(0);
     try {
       const data = await chrome.storage.local.get(DEBUG_LOG_KEY);
       const logs = data[DEBUG_LOG_KEY] || [];
-      logs.push(entry);
+      logs.push(...entries);
       if (logs.length > MAX_DEBUG_ENTRIES) logs.splice(0, logs.length - MAX_DEBUG_ENTRIES);
       await chrome.storage.local.set({ [DEBUG_LOG_KEY]: logs });
     } catch {}
-  })();
+  }, 0);
 }
 
 // ============================================
@@ -88,7 +95,7 @@ chrome.storage.session.get(['tabSessions', 'activeTabs', 'tabLastShownInfo', 'cu
   }
 }).catch(() => {});
 
-debugLog('INFO', `Service Worker started - ${new Date().toISOString()}`);
+debugLog('INFO', `Service Worker started - ${new Date().toISOString()} | extensionId=${chrome.runtime.id}`);
 
 // 탭 닫힐 때 세션 및 활성 탭 정리
 chrome.tabs.onRemoved.addListener((tabId) => {
