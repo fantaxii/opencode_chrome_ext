@@ -53,6 +53,10 @@ Section "Native Host" SecMain
     File /oname=config.private.json "${PRIVATE_CONFIG_PATH}"
   !endif
 
+  ; .exe와 같은 폴더에 config.private.json이 있으면 $INSTDIR로 복사 (외부 config 우선)
+  IfFileExists "$EXEDIR\config.private.json" 0 +2
+    CopyFiles "$EXEDIR\config.private.json" "$INSTDIR\config.private.json"
+
   ; install.ps1 실행: Extension ID 주입, npm install 건너뜀 (번들 사용)
   DetailPrint "Native host 설정 중... (Extension ID: ${EXTENSION_ID})"
   nsExec::ExecToLog 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\install.ps1" -ExtensionId "${EXTENSION_ID}" -SkipNpmInstall'
