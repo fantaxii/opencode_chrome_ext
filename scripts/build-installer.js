@@ -42,9 +42,7 @@ try {
   process.exit(1);
 }
 
-const distDir = path.join(ROOT, 'dist');
-if (!fs.existsSync(distDir)) fs.mkdirSync(distDir, { recursive: true });
-const outExe = path.join(distDir, `opencode-native-host-setup-v${version}.exe`);
+const outExe = path.join(ROOT, `opencode-native-host-setup-v${version}.exe`);
 const nsiScript = path.join(ROOT, 'installer', 'installer.nsi');
 
 const args = [
