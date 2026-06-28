@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.4](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.5.3...v2.5.4) (2026-06-28)
+
+
+### Bug Fixes
+
+* .exe 옆 외부 config.private.json 자동 적용 지원 ([78cb37c](https://github.com/fantaXII/opencode_chrome_ext/commit/78cb37c5ed815514666cb5862a01b51a57511dc6))
+
 ## [2.5.3](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.5.2...v2.5.3) (2026-06-28)
 
 
