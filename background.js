@@ -568,15 +568,14 @@ async function sendMessage(sessionId, message, tabInfo, onChunk, onComplete) {
     const workingDir = await getWorkingDirectory();
     const headers = { 'Content-Type': 'application/json' };
     if (workingDir) {
-      // HTTP headers are restricted to ISO-8859-1 (U+0000–U+00FF).
-      // Paths with Korean/CJK characters would throw a TypeError in fetch; skip them.
-      if (/^[ -ÿ]*$/.test(workingDir)) {
-        headers['x-opencode-directory'] = workingDir;
-      } else {
-        debugLog('WARN', `x-opencode-directory skipped (non-Latin path) - dir=${workingDir}`);
-      }
+      // HTTP headers require ISO-8859-1. URL-encode non-Latin paths so fetch does not throw.
+      const isLatin = /^[\x00-\xFF]*$/.test(workingDir);
+      const dirHeader = isLatin ? workingDir : encodeURIComponent(workingDir);
+      headers['x-opencode-directory'] = dirHeader;
+      debugLog('INFO', `x-opencode-directory set - dir=${workingDir}, encoded=${!isLatin}, sessionId=${sessionId}`);
+    } else {
+      debugLog('INFO', `x-opencode-directory not set (no saved working dir) - sessionId=${sessionId}`);
     }
-
     let fullMessage = message;
     if (tabInfo?.url || tabInfo?.pageContent) {
       let pageContext = '';
