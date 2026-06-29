@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.5.5](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.5.4...v2.5.5) (2026-06-29)
+
+
+### Bug Fixes
+
+* build:all 순서 수정으로 .exe가 dist/에 포함되도록 개선 ([2829b0b](https://github.com/fantaXII/opencode_chrome_ext/commit/2829b0b4f44e3caf07de1ce4b4fa95a39cc294b0))
+* 한글 경로 working dir를 URL 인코딩하여 OpenCode에 전달 ([7531ae4](https://github.com/fantaXII/opencode_chrome_ext/commit/7531ae48999187abb27054abfdb379ba29d04319))
+* 한글 경로 포함 시 메시지 전송 실패 버그 수정 ([1dcd5ba](https://github.com/fantaXII/opencode_chrome_ext/commit/1dcd5ba2f583e65b05b1dd76c0c21f6850308d90))
+
 ## [2.5.4](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.5.3...v2.5.4) (2026-06-28)
 
 
