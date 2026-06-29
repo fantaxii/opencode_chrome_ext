@@ -567,7 +567,15 @@ async function sendMessage(sessionId, message, tabInfo, onChunk, onComplete) {
   try {
     const workingDir = await getWorkingDirectory();
     const headers = { 'Content-Type': 'application/json' };
-    if (workingDir) headers['x-opencode-directory'] = workingDir;
+    if (workingDir) {
+      // HTTP headers are restricted to ISO-8859-1 (U+0000–U+00FF).
+      // Paths with Korean/CJK characters would throw a TypeError in fetch; skip them.
+      if (/^[ -ÿ]*$/.test(workingDir)) {
+        headers['x-opencode-directory'] = workingDir;
+      } else {
+        debugLog('WARN', `x-opencode-directory skipped (non-Latin path) - dir=${workingDir}`);
+      }
+    }
 
     let fullMessage = message;
     if (tabInfo?.url || tabInfo?.pageContent) {
@@ -602,17 +610,33 @@ async function sendMessage(sessionId, message, tabInfo, onChunk, onComplete) {
     await subscribeToEvents(sessionId, port, onChunk, onComplete);
     debugLog('INFO', `SSE pre-connected before prompt - sessionId=${sessionId}, elapsedMs=${Date.now() - subscribeStart}`);
 
-    const promptResponse = await fetch(
-      `http://127.0.0.1:${port}/session/${sessionId}/prompt_async`,
-      {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          ...(selectedModel && { model: selectedModel }),
-          parts: [{ type: 'text', text: fullMessage }]
-        })
-      }
-    );
+    const promptCtrl = new AbortController();
+    const promptTimeout = setTimeout(() => promptCtrl.abort(), 15000);
+    let promptResponse;
+    try {
+      promptResponse = await fetch(
+        `http://127.0.0.1:${port}/session/${sessionId}/prompt_async`,
+        {
+          method: 'POST',
+          headers,
+          signal: promptCtrl.signal,
+          body: JSON.stringify({
+            ...(selectedModel && { model: selectedModel }),
+            parts: [{ type: 'text', text: fullMessage }]
+          })
+        }
+      );
+    } catch (fetchErr) {
+      clearTimeout(promptTimeout);
+      const errMsg = fetchErr.name === 'AbortError'
+        ? `Prompt fetch timeout (15s) - sessionId=${sessionId}`
+        : `Prompt fetch error - ${fetchErr.message}, sessionId=${sessionId}`;
+      debugLog('ERROR', errMsg);
+      throw fetchErr.name === 'AbortError'
+        ? new Error(`메시지 전송 시간 초과 (15s)`)
+        : fetchErr;
+    }
+    clearTimeout(promptTimeout);
     if (promptResponse.status !== 204 && promptResponse.status !== 202 && !promptResponse.ok) {
       const body = await promptResponse.text().catch(() => '');
       debugLog('ERROR', `REST /prompt failed - status=${promptResponse.status}, body=${body}, sessionId=${sessionId}`);
@@ -1070,6 +1094,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
               await doSendMessage(newId);
             } else {
+              debugLog('ERROR', `send-message failed (non-400) - ${err.message}, sessionId=${message.sessionId}`);
               throw err;
             }
           }
