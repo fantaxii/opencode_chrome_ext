@@ -3,5 +3,5 @@
   "description": "OpenCode Chrome Extension Native Messaging Host",
   "path": "host.js",
   "type": "stdio",
-  "allowed_origins": ["chrome-extension://*"]
+  "allowed_origins": ["chrome-extension://jchffojdjnhpmdgnifkhpgmgokbidobi/"]
 }

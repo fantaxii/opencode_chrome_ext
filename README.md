@@ -487,7 +487,7 @@ GitHub Releases에서 아래 두 파일을 다운로드합니다:
 3. 우측 상단 **개발자 모드** 활성화
 4. **"압축 해제된 확장 프로그램 로드"** 클릭
 5. 압축 해제한 폴더 선택
-6. Extension ID 확인 (32자 영소문자, 예: `adiacpiichkecbkodjeddeocfpkhigfg`)
+6. Extension ID 확인 (32자 영소문자, 예: `jchffojdjnhpmdgnifkhpgmgokbidobi`)
 
 **Step 3: Native Messaging Host 설치**
 

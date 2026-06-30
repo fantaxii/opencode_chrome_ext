@@ -2,7 +2,7 @@
 
 param(
     [string]$InstallPath = "$env:LOCALAPPDATA\OpenCodeChrome",
-    [string]$ExtensionId = "adiacpiichkecbkodjeddeocfpkhigfg",
+    [string]$ExtensionId = "jchffojdjnhpmdgnifkhpgmgokbidobi",
     [switch]$SkipNpmInstall
 )
 

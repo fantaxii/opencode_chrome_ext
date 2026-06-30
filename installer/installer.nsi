@@ -5,7 +5,7 @@
 
 ; --- 빌드 시점 주입 변수 ---
 !ifndef EXTENSION_ID
-  !define EXTENSION_ID "adiacpiichkecbkodjeddeocfpkhigfg"
+  !define EXTENSION_ID "jchffojdjnhpmdgnifkhpgmgokbidobi"
 !endif
 !ifndef APP_VERSION
   !define APP_VERSION "2.2.1"
