@@ -674,6 +674,12 @@ body {
 .folder-icon {
   flex-shrink: 0;
   font-size: 13px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.folder-icon:hover {
+  opacity: 0.7;
 }
 
 .working-folder-display {

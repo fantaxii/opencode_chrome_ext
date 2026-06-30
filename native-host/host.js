@@ -281,6 +281,29 @@ async function handleMessage(message) {
       return { status: 'success', directory: os.homedir() };
     }
 
+    case 'browse-for-folder': {
+      fileLog('INFO', 'browse-for-folder: Opening FolderBrowserDialog...');
+      try {
+        const { execSync } = require('child_process');
+        const ps = [
+          'Add-Type -AssemblyName System.Windows.Forms;',
+          '$d = New-Object System.Windows.Forms.FolderBrowserDialog;',
+          "$d.Description = 'Select working directory';",
+          "if ($d.ShowDialog() -eq 'OK') { $d.SelectedPath } else { '' }"
+        ].join(' ');
+        const dir = execSync(`powershell -NoProfile -Command "${ps}"`, { encoding: 'utf8' }).trim();
+        if (dir) {
+          fileLog('INFO', `browse-for-folder: Selected - ${dir}`);
+        } else {
+          fileLog('INFO', 'browse-for-folder: Cancelled by user');
+        }
+        return { status: 'success', directory: dir || null };
+      } catch (e) {
+        fileLog('ERROR', `browse-for-folder: Failed - ${e.message}`);
+        return { status: 'error', error: e.message, directory: null };
+      }
+    }
+
     case 'read-log': {
       try {
         if (!fs.existsSync(LOG_FILE)) {

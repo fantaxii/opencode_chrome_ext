@@ -1134,6 +1134,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
         }
 
+        case 'browse-for-folder': {
+          try {
+            const res = await chrome.runtime.sendNativeMessage(NATIVE_HOST_NAME, { action: 'browse-for-folder' });
+            if (res?.directory) {
+              const wslPath = toWSLPath(res.directory);
+              debugLog('INFO', `browse-for-folder: selected=${res.directory}, wsl=${wslPath}`);
+              sendResponse({ directory: wslPath });
+            } else {
+              debugLog('INFO', 'browse-for-folder: cancelled or no directory returned');
+              sendResponse({ directory: null });
+            }
+          } catch (e) {
+            debugLog('ERROR', `browse-for-folder: ${e.message}`);
+            sendResponse({ directory: null, error: e.message });
+          }
+          break;
+        }
+
         case 'get-models':
           const models = await getAvailableModels();
           sendResponse({ success: true, models });

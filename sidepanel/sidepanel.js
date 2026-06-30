@@ -125,6 +125,14 @@
 
   workingFolderEditBtn.addEventListener('click', enterEditMode);
 
+  folderIcon.addEventListener('click', async () => {
+    const res = await sendMessageToBackground('browse-for-folder');
+    if (res?.directory) {
+      const result = await sendMessageToBackground('set-working-directory', { directory: res.directory });
+      updateWorkingFolderDisplay(result.directory || res.directory);
+    }
+  });
+
   async function commitWorkingFolder() {
     const newPath = workingFolderInput.value.trim();
     exitEditMode();
