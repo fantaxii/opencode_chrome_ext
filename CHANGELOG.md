@@ -1,5 +1,18 @@
 # Changelog
 
+# [2.6.0](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.5.5...v2.6.0) (2026-06-30)
+
+
+### Bug Fixes
+
+* Extension ID를 Web Store 공개키 기반 ID로 통일 ([074150d](https://github.com/fantaXII/opencode_chrome_ext/commit/074150d9454db16570e1da633c7f86c0af1036a4))
+
+
+### Features
+
+* PowerShell 및 첨부 버튼에 '준비 중' 바텀 토스트 추가 ([eeee85b](https://github.com/fantaXII/opencode_chrome_ext/commit/eeee85b2abbdf36bae219505974417953c725fe9))
+* 폴더 아이콘 클릭 시 Windows 파일 탐색기로 working directory 선택 ([0cf6db4](https://github.com/fantaXII/opencode_chrome_ext/commit/0cf6db4493dcaaa8af08c1c69a909c3148609103))
+
 ## [2.5.5](https://github.com/fantaXII/opencode_chrome_ext/compare/v2.5.4...v2.5.5) (2026-06-29)
 
 
