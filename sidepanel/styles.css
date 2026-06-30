@@ -94,6 +94,33 @@ body {
 .header-placeholder {
   color: var(--text-secondary);
   font-size: 11px;
+  cursor: pointer;
+}
+
+.header-placeholder:hover {
+  color: var(--text-primary);
+}
+
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 18px;
+  font-size: 13px;
+  z-index: 9999;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.toast.show {
+  opacity: 1;
 }
 
 .mcp-wrapper {

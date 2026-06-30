@@ -1156,5 +1156,21 @@
     }
   });
 
+  function showToast(message) {
+    const toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.classList.add('show');
+    clearTimeout(toast._hideTimer);
+    toast._hideTimer = setTimeout(() => toast.classList.remove('show'), 2500);
+  }
+
+  document.querySelector('.header-placeholder').addEventListener('click', () => {
+    showToast('🚧 준비 중입니다');
+  });
+
+  attachBtn.addEventListener('click', () => {
+    showToast('🚧 준비 중입니다');
+  });
+
   init();
 })();
